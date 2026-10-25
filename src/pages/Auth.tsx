@@ -1,7 +1,6 @@
 import * as React from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useId } from "react";
-import type { FieldValues } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,27 +8,29 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
 import { KyroMark } from "@/components/KyroMark";
-import { ArrowRight, Check, Loader2, Mail, UserX } from "@/components/icons";
-import { Form, FormField, FormItem, FormLabel } from "@/components/ui/form";
+import {
+  ArrowRight,
+  Check,
+  Eye,
+  EyeOff,
+  Loader2,
+  Mail,
+  UserX,
+} from "@/components/icons";
 import { Link } from "react-router";
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp";
 
-const BYPASS_CODE = "KYRO-ALPHA";
 const USERNAME_PATTERN = /^[a-z0-9_]{3,32}$/;
 
 function AuthPropsReads({
@@ -50,8 +51,7 @@ function resolveRedirectAfterAuth(
   return fallback;
 }
 
-type AuthStep = "signIn" | "register" | { email: string; otp?: string };
-type OtpStep = { email: string; otp: string };
+type Step = "signIn" | "register" | "otp";
 
 function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
   const { isLoading: authLoading, isAuthenticated, signIn } = useAuth();
@@ -62,28 +62,19 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
     redirectAfterAuth,
   );
 
-  const [step, setStep] = React.useState<
-    "signIn" | "register" | OtpStep
-  >("signIn");
+  const [step, setStep] = React.useState<Step>("signIn");
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
+  const [confirmPassword, setConfirmPassword] = React.useState("");
   const [displayName, setDisplayName] = React.useState("");
   const [username, setUsername] = React.useState("");
   const [otp, setOtp] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const [usernameAvailable, setUsernameAvailable] = React.useState<boolean | null>(
-    null,
-  );
-  const [confirmOpen, setConfirmOpen] = React.useState(false);
-  const [registrationParams, setRegistrationParams] = React.useState<{
-    email: string;
-    password: string;
-    displayName: string;
-    username: string;
-  } | null>(null);
+  const [usernameAvailable, setUsernameAvailable] = React.useState<
+    boolean | null
+  >(null);
   const [showPassword, setShowPassword] = React.useState(false);
-  const [confirmPassword, setConfirmPassword] = React.useState("");
   const id = useId();
 
   React.useEffect(() => {
@@ -93,24 +84,23 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
   }, [authLoading, isAuthenticated, navigate, redirect]);
 
   const checkUsername = (value: string) => {
-    const normalized = value.trim().toLowerCase();
-    if (!USERNAME_PATTERN.test(normalized)) {
+    if (!USERNAME_PATTERN.test(value.trim())) {
       setUsernameAvailable(null);
       return;
     }
-    setUsernameAvailable(null);
-    // Simple synchronous check; real availability check happens on submit.
     setUsernameAvailable(true);
   };
 
-  const handleEmailSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleEmailSubmit = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ) => {
     event.preventDefault();
     setIsLoading(true);
     setError(null);
     try {
       const formData = new FormData(event.currentTarget);
       await signIn("email-otp", formData);
-      setStep({ step: "otp", email: formData.get("email") as string });
+      setStep("otp");
       setIsLoading(false);
     } catch (err) {
       console.error("Email sign-in error:", err);
@@ -123,22 +113,39 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
     }
   };
 
-  const handleRegisterSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleRegisterSubmit = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ) => {
     event.preventDefault();
     setIsLoading(true);
     setError(null);
     try {
-      // Register with the auth package using email + password
-      // Register with the auth package using email + password
-      // We call the Convex mutation directly
-      await api["users/createAccount"].mutation({
-        email,
+      if (!USERNAME_PATTERN.test(username.trim())) {
+        setError("Pick a username using only letters, numbers and underscores.");
+        setIsLoading(false);
+        return;
+      }
+      if (password.length < 8) {
+        setError("Password must be at least 8 characters.");
+        setIsLoading(false);
+        return;
+      }
+      if (confirmPassword !== password) {
+        setError("Passwords do not match.");
+        setIsLoading(false);
+        return;
+      }
+      await api.users.createAccount({
+        email: email.trim().toLowerCase(),
         password,
-        username: username.trim(),
-        name: displayName || username,
+        username: username.trim().toLowerCase(),
+        name: displayName.trim() || username.trim(),
       });
-      // Sign in with the created account
-      await signIn("password", { email, password, createAccount: false });
+      await signIn("password", {
+        email: email.trim().toLowerCase(),
+        password,
+        createAccount: false,
+      });
       toast.success("Account created!");
       navigate(redirect);
     } catch (err) {
@@ -150,23 +157,20 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
     }
   };
 
-  const handleOtpSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleOtpSubmit = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ) => {
     event.preventDefault();
     setIsLoading(true);
     setError(null);
     try {
       const formData = new FormData(event.currentTarget);
       await signIn("email-otp", formData);
-
-      console.log("signed in");
-
       navigate(redirect);
     } catch (err) {
       console.error("OTP verification error:", err);
-
       setError("The verification code you entered is incorrect.");
       setIsLoading(false);
-
       setOtp("");
     }
   };
@@ -175,13 +179,10 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
     setIsLoading(true);
     setError(null);
     try {
-      console.log("Attempting anonymous sign in...");
       await signIn("anonymous");
-      console.log("Anonymous sign in successful");
       navigate(redirect);
     } catch (err) {
       console.error("Guest login error:", err);
-      console.error("Error details:", JSON.stringify(err, null, 2));
       setError(
         `Failed to sign in as guest: ${err instanceof Error ? err.message : "Unknown error"}`,
       );
@@ -189,21 +190,9 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
     }
   };
 
-  const startRegister = (e: React.KeyboardEvent<HTMLButtonElement>) => {
-    e.preventDefault();
+  const startRegister = () => {
     setStep("register");
     setError(null);
-  };
-
-  const togglePassword = () => {
-    const input = document.getElementById("password-input") as HTMLInputElement;
-    if (input) {
-      if (input.type === "password") {
-        input.type = "text";
-      } else {
-        input.type = "password";
-      }
-    }
   };
 
   const startSignIn = () => {
@@ -213,7 +202,6 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
 
   return (
     <div className="flex min-h-screen flex-col lg:flex-row">
-      {/* Brand panel — carries the Kyro identity beside the sign-in form. */}
       <aside className="relative hidden overflow-hidden border-r border-border/60 bg-surface p-12 lg:flex lg:w-[46%] lg:flex-col lg:justify-between">
         <div className="kyro-grid pointer-events-none absolute inset-0 opacity-70" />
         <div className="kyro-orb pointer-events-none absolute -left-24 top-1/3 h-80 w-80" />
@@ -242,7 +230,7 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
             ].map((line) => (
               <li key={line} className="flex items-start gap-2.5 text-sm">
                 <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full bg-success/15 text-[10px] font-bold text-success">
-                  {"✓"}
+                  <Check className="size-3" />
                 </span>
                 {line}
               </li>
@@ -272,7 +260,7 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
                 </div>
                 <CardTitle className="text-xl">Welcome to Kyro</CardTitle>
                 <CardDescription>
-                  Sign in with a password, or create a free account — no email
+                  Sign in with your password, or create a free account — no email
                   code required.
                 </CardDescription>
               </CardHeader>
@@ -354,8 +342,8 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
               <CardHeader className="text-center -mt-6">
                 <CardTitle className="text-xl">Create your account</CardTitle>
                 <CardDescription>
-                  Pick a username and set a password. Email verification is optional —
-                  move at your own pace.
+                  Pick a username and set a password. Email verification is
+                  optional — move at your own pace.
                 </CardDescription>
               </CardHeader>
               <form onSubmit={handleRegisterSubmit} className="space-y-4">
@@ -385,12 +373,13 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
                         onChange={(e) => setPassword(e.target.value)}
                         disabled={isLoading}
                         required
-                        autoComplete="current-password"
+                        autoComplete="new-password"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword((v) => !v)}
                         className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
                       >
                         {showPassword ? (
                           <EyeOff className="size-4" />
@@ -426,6 +415,9 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
                       required
                       autoComplete="username"
                     />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Letters, numbers and underscores only, 3–32 characters.
+                    </p>
                   </div>
 
                   <div>
@@ -440,50 +432,85 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
                     />
                   </div>
                 </CardContent>
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={startRegister}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Check className="h-4 w-4" />
+                    )}
+                    Next
+                  </Button>
+                </div>
+              </form>
+            </>
+          ) : step === "otp" ? (
+            <>
+              <CardHeader className="text-center">
+                <CardTitle className="text-xl">Check your email</CardTitle>
+                <CardDescription>
+                  We sent a one-time code to <span className="font-medium">{email}</span>.
+                  Enter it below.
+                </CardDescription>
+              </CardHeader>
+              <form onSubmit={handleOtpSubmit} className="space-y-4">
+                <CardContent>
+                  <div className="flex gap-2">
+                    <InputOTP
+                      maxLength={6}
+                      value={otp}
+                      onChange={(value) => setOtp(value)}
+                      disabled={isLoading}
+                      required
+                    >
+                      <InputOTPGroup>
+                        <InputOTPSlot index={0} />
+                        <InputOTPSlot index={1} />
+                        <InputOTPSlot index={2} />
+                        <InputOTPSlot index={3} />
+                        <InputOTPSlot index={4} />
+                        <InputOTPSlot index={5} />
+                      </InputOTPGroup>
+                    </InputOTP>
+                    <Button
+                      type="submit"
+                      disabled={isLoading || otp.length < 6}
+                      className="flex-1"
+                    >
+                      {isLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Check className="h-4 w-4" />
+                      )}
+                      Verify
+                    </Button>
+                  </div>
+                  {error && (
+                    <p className="text-sm text-red-500">{error}</p>
+                  )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      setStep("signIn");
+                      setError(null);
+                    }}
+                    disabled={isLoading}
+                  >
+                    Back to sign-in
+                  </Button>
+                </CardContent>
               </form>
             </>
           ) : null}
         </Card>
       </main>
     </div>
-  );
-}
-
-function EyeOff({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.75}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
-      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  );
-}
-
-function Eye({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.75}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
-      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-      <circle cx="12" cy="12" r="2.5" />
-    </svg>
   );
 }
 

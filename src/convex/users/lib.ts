@@ -4,21 +4,25 @@ import type { QueryCtx, MutationCtx } from "../_generated/server";
 
 export type Ctx = QueryCtx | MutationCtx;
 
-/** A user is considered online if they heartbeated within this window. */
 export const PRESENCE_TIMEOUT_MS = 60_000;
 
-/** Resolve the account id of the signed-in user. */
-export async function getAuthUserIdOrThrow(
-  ctx: Ctx,
-): Promise<Id<"users">> {
+export async function getAuthUserIdOrThrow(ctx: Ctx): Promise<Id<"users">> {
   const id = await getAuthUserId(ctx);
   if (id === null) throw new Error("You need to sign in to do that.");
   return id;
 }
 
-/** Get the current signed in user. Returns null if the user is not signed in. */
 export async function currentUser(ctx: Ctx): Promise<Doc<"users"> | null> {
   const id = await getAuthUserId(ctx);
   if (id === null) return null;
   return await ctx.db.get(id);
+}
+
+export async function requireProfile(
+  ctx: Ctx,
+): Promise<{ id: Id<"users">; username: string; name: string }> {
+  const id = await getAuthUserIdOrThrow(ctx);
+  const user = await ctx.db.get(id);
+  if (!user) throw new Error("User not found.");
+  return { id, username: String(user.username), name: String(user.name) };
 }

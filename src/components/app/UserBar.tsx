@@ -37,7 +37,10 @@ export function UserBar({ onOpenSettings }: { onOpenSettings?: () => void }) {
 
   // Resolve "is server owner" from any membership row we can see.
   const checkOwnership = (): boolean => {
-    return false; // ownership check requires server query — not wired
+    const mine = servers as { memberships: { role?: string }[] } | undefined;
+    return (
+      mine?.memberships.some((m) => m.role === "owner") ?? false
+    );
   };
 
   return (
@@ -57,6 +60,7 @@ export function UserBar({ onOpenSettings }: { onOpenSettings?: () => void }) {
                 @{me.username ?? "new"}
               </span>
             </span>
+            {isOwner && <Crown className="size-4 shrink-0 text-amber-500" />}
             <Settings className="size-4 shrink-0 text-muted-foreground" />
           </button>
         </DropdownMenuTrigger>

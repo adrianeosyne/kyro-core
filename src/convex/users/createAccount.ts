@@ -1,12 +1,22 @@
 import { v } from "convex/values";
-import { mutation, action } from "../_generated/server";
-import { requireProfile, type Ctx } from "../lib";
-import { convexAuth, createAccount } from "@convex-dev/auth/server";
+import { mutation, internalMutation } from "../_generated/server";
+import { convexAuth } from "@convex-dev/auth/server";
+import type { ActionCtx } from "../_generated/server";
+import { getAuthUserIdOrThrow } from "./lib";
+
+const storeAuthAccount = internalMutation({
+  args: { args: v.any() },
+  handler: async (ctx, args) => {
+    const fn = (await ctx.runMutation("auth:store", args as any)) as any;
+    const result = (await fn(args as any)) as { _id: string };
+    return result;
+  },
+});
 
 /** Register a new account with email + password. No email verification is
  *  sent: the password provider hashes the password with Scrypt and signs the
  *  user in immediately. The username is claimed afterwards on the client. */
-export const createKyroAccount = mutation({
+export const createAccount = mutation({
   args: {
     email: v.string(),
     password: v.string(),
@@ -14,27 +24,73 @@ export const createKyroAccount = mutation({
     name: v.optional(v.string()),
   },
   handler: async (ctx, { email, password, username, name }) => {
-    const { id } = await requireProfile(ctx);
+    const { id } = await getAuthUserIdOrThrow(ctx);
 
-    const { account, user } = await createAccount(ctx as any, {
-      provider: "password",
-      account: {
-        id: email.toLowerCase(),
-        secret: password,
-      },
-      profile: {
-        email: email.toLowerCase(),
+    const account = await ctx.db
+      .query("authAccounts")
+      .withIndex("providerAndAccountId", (q) =>
+        q.eq("provider", "password").eq("providerAccountId", email.toLowerCase()),
+      )
+      .unique();
+    const user = account
+      ? (await ctx.db.get(account.userId))!
+      : null;
+
+    if (!user) {
+      const { _id: userId } = await ctx.runMutation(storeAuthAccount, {
+        args: {
+          type: "createAccountFromCredentials",
+          provider: "password",
+          account: {
+            id: email.toLowerCase(),
+            secret: password,
+          },
+          profile: {
+            email: email.toLowerCase(),
+            name: name ?? username,
+          },
+          shouldLinkViaEmail: false,
+          shouldLinkViaPhone: false,
+        },
+      });
+
+      await ctx.db.patch(userId, {
+        username: username.toLowerCase(),
         name: name ?? username,
-      },
-      // Do not attach the email provider's verification flow; the password
-      // provider handles sign-up on its own.
-      shouldLinkViaEmail: false,
-      shouldLinkViaPhone: false,
-    });
-    
+        email: email.toLowerCase(),
+        avatarStorageId: undefined,
+        bio: undefined,
+        customStatus: undefined,
+        status: "online",
+        createdAt: Date.now(),
+        lastSeen: Date.now(),
+        dmPolicy: "everyone",
+        allowFriendRequests: true,
+        showPresence: true,
+      });
 
-    // Patch the Kyro profile with the handle and display name we recorded
-    // because the generic account creation does not know about them.
+      return userId;
+    }
+
+    // User already exists (e.g. guest-created account): attach the password
+    // credentials and record the Kyro profile without creating a duplicate.
+    await ctx.runMutation(storeAuthAccount, {
+      args: {
+        type: "createAccountFromCredentials",
+        provider: "password",
+        account: {
+          id: email.toLowerCase(),
+          secret: password,
+        },
+        profile: {
+          email: email.toLowerCase(),
+          name: name ?? username,
+        },
+        shouldLinkViaEmail: false,
+        shouldLinkViaPhone: false,
+      },
+    });
+
     await ctx.db.patch(user._id, {
       username: username.toLowerCase(),
       name: name ?? username,
