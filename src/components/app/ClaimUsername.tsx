@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "convex/react";
-import { Check, Loader2, X } from "lucide-react";
+import { Check, Loader2, X } from "@/components/icons";
 import { useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { KyroMark } from "@/components/KyroMark";

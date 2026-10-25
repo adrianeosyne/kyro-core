@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import logo from "@/assets/logo.svg";
 import { useAuth } from "@/hooks/use-auth";
-import { Home, LogOut } from "lucide-react";
+import { Home, LogOut } from "@/components/icons";
 import { useNavigate } from "react-router";
 
 export function LogoDropdown() {

@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "convex/react";
-import { Hash, Loader2, MessagesSquare } from "lucide-react";
+import { Hash, Loader2, MessagesSquare } from "@/components/icons";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";

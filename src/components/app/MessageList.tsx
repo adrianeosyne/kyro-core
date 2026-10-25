@@ -7,7 +7,7 @@ import {
   Reply,
   SmilePlus,
   Trash2,
-} from "lucide-react";
+} from "@/components/icons";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";

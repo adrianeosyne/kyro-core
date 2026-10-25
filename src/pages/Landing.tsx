@@ -14,7 +14,7 @@ import {
   Users,
   Wrench,
   Zap,
-} from "lucide-react";
+} from "@/components/icons";
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { KyroWordmark } from "@/components/KyroMark";

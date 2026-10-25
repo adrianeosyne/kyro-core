@@ -9,7 +9,7 @@ import {
   Plus,
   ShieldAlert,
   X,
-} from "lucide-react";
+} from "@/components/icons";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { api } from "@/convex/_generated/api";

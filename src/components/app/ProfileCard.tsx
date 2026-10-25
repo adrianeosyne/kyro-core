@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "convex/react";
-import { Ban, Check, Clock, MessageCircle, UserPlus, X } from "lucide-react";
+import { Ban, Check, Clock, MessageCircle, UserPlus, X } from "@/components/icons";
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";

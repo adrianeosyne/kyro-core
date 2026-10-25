@@ -1,6 +1,6 @@
 import { useQuery } from "convex/react";
 import { Navigate, Route, Routes, useParams } from "react-router";
-import { Hash, Loader2 } from "lucide-react";
+import { Hash, Loader2 } from "@/components/icons";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { AppShell } from "@/components/app/AppShell";

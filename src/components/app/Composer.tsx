@@ -1,5 +1,5 @@
 import { useMutation } from "convex/react";
-import { Paperclip, Send, Smile, X } from "lucide-react";
+import { Paperclip, Send, Smile, X } from "@/components/icons";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";

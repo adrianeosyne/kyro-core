@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "convex/react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router";
-import { Hash, Loader2, MessagesSquare, Search, UserPlus, Users } from "lucide-react";
+import { Hash, Loader2, MessagesSquare, Search, UserPlus, Users } from "@/components/icons";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";

@@ -16,7 +16,7 @@ import {
 
 import { useAuth } from "@/hooks/use-auth";
 import { KyroMark } from "@/components/KyroMark";
-import { ArrowRight, Loader2, Mail, UserX } from "lucide-react";
+import { ArrowRight, Loader2, Mail, UserX } from "@/components/icons";
 import { Suspense, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 

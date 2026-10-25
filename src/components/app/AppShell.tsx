@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "convex/react";
-import { Bell, Loader2, Menu, PanelRight, Search } from "lucide-react";
+import { Bell, Loader2, Menu, PanelRight, Search } from "@/components/icons";
 import { useEffect, type ReactNode } from "react";
 import { useMatch, useSearchParams } from "react-router";
 import { api } from "@/convex/_generated/api";

@@ -10,7 +10,7 @@ import {
   Settings,
   UserPlus,
   Users,
-} from "lucide-react";
+} from "@/components/icons";
 import { useMemo, useState } from "react";
 import { Link, useMatch, useNavigate } from "react-router";
 import { toast } from "sonner";

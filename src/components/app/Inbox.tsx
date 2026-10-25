@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "convex/react";
-import { Bell, CheckCheck, MailOpen } from "lucide-react";
+import { Bell, CheckCheck, MailOpen } from "@/components/icons";
 import { api } from "@/convex/_generated/api";
 import { UserAvatar } from "@/components/app/UserAvatar";
 import { Button } from "@/components/ui/button";

@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "convex/react";
-import { Circle, LogOut, Settings } from "lucide-react";
+import { Circle, LogOut, Settings } from "@/components/icons";
 import { api } from "@/convex/_generated/api";
 import { UserAvatar } from "@/components/app/UserAvatar";
 import { useAuth } from "@/hooks/use-auth";

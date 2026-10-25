@@ -8,7 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
-import { Loader2, Lock } from "lucide-react";
+import { Loader2, Lock } from "@/components/icons";
 import type { ReactNode } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router";
 
