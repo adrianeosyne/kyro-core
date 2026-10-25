@@ -7,9 +7,8 @@ import { getAuthUserIdOrThrow } from "./lib";
 const storeAuthAccount = internalMutation({
   args: { args: v.any() },
   handler: async (ctx, args) => {
-    const fn = (await ctx.runMutation("auth:store", args as any)) as any;
-    const result = (await fn(args as any)) as { _id: string };
-    return result;
+    const result = await (ctx.runMutation("auth:store") as any)(args as any) as any;
+    return (result as any) as { _id: string };
   },
 });
 
