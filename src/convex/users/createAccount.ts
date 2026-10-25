@@ -1,12 +1,12 @@
 import { v } from "convex/values";
 import { mutation } from "./_generated/server";
 import { requireProfile, type Ctx } from "./lib";
-import { createAccount, convexAuth } from "@convex-dev/auth/server";
+import { convexAuth } from "@convex-dev/auth/server";
 
 /** Register a new account with email + password. No email verification is
  *  sent: the password provider hashes the password with Scrypt and signs the
  *  user in immediately. The username is claimed afterwards on the client. */
-export const createAccount = mutation({
+export const createKyroAccount = mutation({
   args: {
     email: v.string(),
     password: v.string(),

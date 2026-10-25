@@ -33,4 +33,4 @@ export default {
       algorithm: "RS256",
     },
   ],
-} satisfies AuthConfig;
+} as AuthConfig;
