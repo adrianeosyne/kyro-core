@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "convex/react";
 import { Check, Loader2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { KyroMark } from "@/components/KyroMark";
 import { Button } from "@/components/ui/button";
@@ -19,9 +19,13 @@ export function ClaimUsername() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (me?.name && !displayName) setDisplayName(me.name);
-  }, [me?.name, displayName]);
+  // Seed the display-name field from the profile once it loads, without
+  // clobbering what the user has typed (adjust-state-during-render pattern).
+  const [seededName, setSeededName] = useState<string | null>(null);
+  if (me?.name && !displayName && seededName !== me.name) {
+    setSeededName(me.name);
+    setDisplayName(me.name);
+  }
 
   const normalized = username.trim().toLowerCase();
   const valid = HANDLE_PATTERN.test(normalized);

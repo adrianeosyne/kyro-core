@@ -64,7 +64,6 @@ function ServerSection({ serverId }: { serverId: string }) {
   const listing = useQuery(api.channels.list, {
     serverId: serverId as Id<"servers">,
   });
-  const createChannel = useMutation(api.channels.create);
   const createCategory = useMutation(api.channels.createCategory);
   const leave = useMutation(api.servers.leave);
   const setMuted = useMutation(api.servers.setMuted);
@@ -319,7 +318,7 @@ function HomeSection() {
         to="/dashboard"
         className={cn(
           "mb-1 flex items-center gap-2 rounded-md px-2 py-2 text-sm",
-          Boolean(friendsMatch)
+          friendsMatch
             ? "bg-sidebar-accent font-medium text-foreground"
             : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
         )}

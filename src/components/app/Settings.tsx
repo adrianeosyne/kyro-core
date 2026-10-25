@@ -36,7 +36,7 @@ import {
   type Density,
   type ThemeChoice,
 } from "@/lib/store";
-import { ACCEPTED_UPLOAD, MAX_UPLOAD_BYTES, useUploadFile } from "@/lib/upload";
+import { MAX_UPLOAD_BYTES, useUploadFile } from "@/lib/upload";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 

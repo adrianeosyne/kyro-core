@@ -10,7 +10,7 @@ import {
   ShieldAlert,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -147,6 +147,18 @@ export function InviteDialog({
   const [expiresInHours, setExpiresInHours] = useState(0);
   const [maxUses, setMaxUses] = useState(0);
   const [busy, setBusy] = useState(false);
+  // Clock for the invite list's "expired" label. Kept in state and ticked
+  // from an interval so rendering stays pure.
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    const refresh = () => setNow(Date.now());
+    const immediate = window.setTimeout(refresh, 0);
+    const timer = window.setInterval(refresh, 30_000);
+    return () => {
+      window.clearTimeout(immediate);
+      window.clearInterval(timer);
+    };
+  }, []);
   const [copied, setCopied] = useState<string | null>(null);
 
   const linkFor = (code: string) => `${window.location.origin}/invite/${code}`;
@@ -241,7 +253,9 @@ export function InviteDialog({
               .filter((invite) => !invite.revoked)
               .map((invite) => {
                 const expired =
-                  (invite.expiresAt !== null && invite.expiresAt < Date.now()) ||
+                  (invite.expiresAt !== null &&
+                    now > 0 &&
+                    invite.expiresAt < now) ||
                   (invite.maxUses !== null && invite.uses >= invite.maxUses);
                 return (
                   <div

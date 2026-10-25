@@ -1,10 +1,11 @@
 import { useMutation, useQuery } from "convex/react";
 import { Bell, Loader2, Menu, PanelRight, Search } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
-import { useMatch, useNavigate, useSearchParams } from "react-router";
+import { useMatch, useSearchParams } from "react-router";
 import { api } from "@/convex/_generated/api";
 import { ClaimUsername } from "@/components/app/ClaimUsername";
 import { Inbox } from "@/components/app/Inbox";
+import { ProfileCard } from "@/components/app/ProfileCard";
 import { SearchOverlay } from "@/components/app/SearchOverlay";
 import { ServerRail } from "@/components/app/ServerRail";
 import { SettingsDialog } from "@/components/app/Settings";
@@ -24,7 +25,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   const me = useQuery(api.users.me);
   const heartbeat = useMutation(api.users.heartbeat);
   const unread = useQuery(api.notifications.unreadCount);
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const { mobileNavOpen, setMobileNav, searchOpen, setSearchOpen, inboxOpen, setInboxOpen } =
@@ -168,6 +168,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           }
         }}
       />
+      {/* Profile popups are opened by adding ?user=<id> anywhere in the app. */}
+      <ProfileCard />
     </div>
   );
 }

@@ -1,63 +1,81 @@
-import { useEffect } from "react";
-import { useAuth } from "@/hooks/use-auth";
-import { useTheme } from "@/lib/theme";
-import { useEffect as useEffect2 } from "react";
-import { useTheme2 } from "@/components/_generated/api";
-import { useAuth2 } from "@/hooks/use-auth";
-import { useEffect as useTheme2_ } from "react";
-import { useTheme2 as useTheme3 } from "@/components/_generated/api";
-import { useTheme3 } from "@/components/_generated/api";
-import { useTheme as useTheme__ } from "@/components/_generated/api";
-import { useEffect } from "react";
-import { useEffect } from "react";
-import { useTheme as useTheme } from "@/components/_generated/api";
-import { useEffect as use_theme } from "react";
-import { useTheme as useTheme_ } from "@/components/_generated/api";
-import { useAuth2 } from "@/hooks/use-auth";
-import { useEffect as use_theme } from "react";
-import { useTheme as useTheme___ } from "@/components/_generated/api";
-import { useAuth } from "@/hooks/use-auth";
-import { useEffect as useEffect___ } from "react";
-import { useTheme } from "@/components/_generated/api";
-import { useTheme as useTheme2___ } from "@/components/_generated/api";
-import { useEffect as useEffect___2 } from "react";
-import { useTheme as useTheme___ } from "@/components/_generated/api";
-import { useEffect as _useEffect___ } from "react";
-import { useTheme as useTheme___2 } from "@/components/_generated/api";
-import { useAuth } from "@/hooks/use-auth";
-import { useEffect } from "react";
-import { useTheme as useTheme2___ } from "@/components/_generated/api";
-import { useEffect as useEffect___ } from "react";
-import { useTheme as useTheme___ } from "@/components/_generated/api";
-import { useEffect as _useEffect___ } from "react";
-import { useTheme as _useEffect___2 } from "@/components/_generated/api";
-import { useEffect as _useEffect___ } from "react";
-import { useEffect as _useEffect___2 } from "react";
-import { useEffect as useEffect___3 } from "react";
-import { useEffect } from "react";
-import { useEffect as _useEffect3 } from "react";
-import { useEffect as _useEffect__3 } from "react";
-import { useEffect as _useEffect4 } from "react";
-import { useEffect as _useEffect5 } from "react";
-import { useEffect as _useEffect6 } from "react";
-import { useEffect as _useEffect7 } from "react";
-import { useEffect as _useEffect8 } from "react";
-import { useEffect as _useEffect9 } from "react";
-import { useEffect as _useEffect_ } from "react";
-import { useEffect as _useEffect_2 } from "react";
-import { useEffect as _useEffect_3 } from "react";
-import { useEffect as _useEffect_4 } from "react";
-import { useEffect as _useEffect_5 } from "react";
-import { useEffect as _useEffect_6 } from "react";
-import { useEffect as _useEffect_7 } from "react";
-import { useEffect as _useEffect_8 } from "react";
-import { useEffect as _useEffect_9 } from "react";
-import { useEffect as _useEffect__ } from "react";
-import { useEffect as _useEffect__2 } from "react";
-import { useEffect as _useEffect__3 } from "react";
-import { useEffect as _useEffect__4 } from "react";
-import { useEffect as _useEffect__5 } from "react";
-import { useEffect as _useEffect__6 } from "react";
-import { useEffect as _useEffect__7 } from "react";
-import { useEffect as _useEffect__8 } from "react";
-import { useEffect as _useEffect__9 } from "react";
+import { useQuery } from "convex/react";
+import { Navigate, Route, Routes, useParams } from "react-router";
+import { Hash, Loader2 } from "lucide-react";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
+import { AppShell } from "@/components/app/AppShell";
+import { ChannelChat, DirectChat } from "@/components/app/ChatView";
+import { FriendsView } from "@/components/app/Friends";
+import { ServerSettings } from "@/components/app/ServerSettings";
+
+/**
+ * The signed-in product: everything lives inside the AppShell frame and is
+ * routed underneath it — friends home, DMs, community channels and the
+ * community settings panel.
+ */
+export default function Dashboard() {
+  return (
+    <AppShell>
+      <Routes>
+        <Route index element={<FriendsView />} />
+        <Route path="dm" element={<Navigate to="/dashboard" replace />} />
+        <Route path="dm/:conversationId" element={<DirectChatRoute />} />
+        <Route path="s/:serverId" element={<ServerIndexRoute />} />
+        <Route path="s/:serverId/c/:channelId" element={<ChannelRoute />} />
+        <Route path="s/:serverId/settings/*" element={<ServerSettingsRoute />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </AppShell>
+  );
+}
+
+function DirectChatRoute() {
+  const { conversationId } = useParams();
+  if (!conversationId) return <Navigate to="/dashboard" replace />;
+  return <DirectChat conversationId={conversationId} />;
+}
+
+function ChannelRoute() {
+  const { serverId, channelId } = useParams();
+  if (!serverId || !channelId) return <Navigate to="/dashboard" replace />;
+  return <ChannelChat serverId={serverId} channelId={channelId} />;
+}
+
+function ServerSettingsRoute() {
+  const { serverId } = useParams();
+  if (!serverId) return <Navigate to="/dashboard" replace />;
+  return <ServerSettings serverId={serverId} />;
+}
+
+/** Landing on a community drops you into its first readable channel. */
+function ServerIndexRoute() {
+  const { serverId } = useParams();
+  const channels = useQuery(
+    api.channels.list,
+    serverId ? { serverId: serverId as Id<"servers"> } : "skip",
+  );
+
+  if (!serverId) return <Navigate to="/dashboard" replace />;
+
+  if (channels === undefined) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const first = channels.channels[0];
+  if (first) return <Navigate to={`/dashboard/s/${serverId}/c/${first.id}`} replace />;
+
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
+      <Hash className="size-6 text-muted-foreground" />
+      <p className="text-sm font-semibold">No channels yet</p>
+      <p className="max-w-sm text-sm text-muted-foreground">
+        This community doesn't have any channels. Create the first one from the
+        sidebar, or invite people to start the conversation.
+      </p>
+    </div>
+  );
+}

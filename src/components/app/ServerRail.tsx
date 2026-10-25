@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import { Compass, Loader2, Plus } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";

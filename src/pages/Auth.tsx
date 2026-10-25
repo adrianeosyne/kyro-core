@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/input-otp";
 
 import { useAuth } from "@/hooks/use-auth";
-import logo from "@/assets/logo.svg";
+import { KyroMark } from "@/components/KyroMark";
 import { ArrowRight, Loader2, Mail, UserX } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
@@ -110,29 +110,67 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="flex min-h-screen flex-col lg:flex-row">
+      {/* Brand panel — carries the Kyro identity beside the sign-in form. */}
+      <aside className="relative hidden overflow-hidden border-r border-border/60 bg-surface p-12 lg:flex lg:w-[46%] lg:flex-col lg:justify-between">
+        <div className="kyro-grid pointer-events-none absolute inset-0 opacity-70" />
+        <div className="kyro-orb pointer-events-none absolute -left-24 top-1/3 h-80 w-80" />
 
-      
-      {/* Auth Content */}
-      <div className="flex-1 flex items-center justify-center">
-        <div className="flex items-center justify-center h-full flex-col">
-        <Card className="min-w-[350px] pb-0 border shadow-md">
+        <a
+          href="/"
+          className="relative flex items-center gap-2.5 text-lg font-bold tracking-tight"
+        >
+          <KyroMark className="size-9" />
+          Kyro
+        </a>
+
+        <div className="relative max-w-md">
+          <h1 className="text-4xl font-bold leading-[1.1] tracking-tight">
+            Connect. Play. <span className="kyro-gradient-text">Belong.</span>
+          </h1>
+          <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+            Communities, channels, friends, roles and moderation — the whole
+            platform, free for everyone, with nothing to upgrade to.
+          </p>
+          <ul className="mt-6 space-y-2.5">
+            {[
+              "Unlimited communities, messages and uploads",
+              "Every moderation tool, included for all",
+              "No subscriptions and no premium tier",
+            ].map((line) => (
+              <li key={line} className="flex items-start gap-2.5 text-sm">
+                <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full bg-success/15 text-[10px] font-bold text-success">
+                  ✓
+                </span>
+                {line}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <p className="relative text-xs text-muted-foreground">
+          Free forever · no ads · your data stays yours
+        </p>
+      </aside>
+
+      <main className="flex flex-1 items-center justify-center px-4 py-10">
+        <Card className="w-full max-w-md border shadow-md">
           {step === "signIn" ? (
             <>
               <CardHeader className="text-center">
-              <div className="flex justify-center">
-                    <img
-                      src={logo}
-                      alt="Lock Icon"
-                      width={64}
-                      height={64}
-                      className="rounded-lg mb-4 mt-4 cursor-pointer"
-                      onClick={() => navigate("/")}
-                    />
-                  </div>
-                <CardTitle className="text-xl">Get Started</CardTitle>
+                <div className="flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => navigate("/")}
+                    aria-label="Back to the Kyro home page"
+                    className="cursor-pointer"
+                  >
+                    <KyroMark className="mb-4 mt-4 size-14" />
+                  </button>
+                </div>
+                <CardTitle className="text-xl">Welcome to Kyro</CardTitle>
                 <CardDescription>
-                  Enter your email to log in or sign up
+                  Enter your email to sign in or create a free account
                 </CardDescription>
               </CardHeader>
               <form onSubmit={handleEmailSubmit}>
@@ -277,20 +315,24 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
             </>
           )}
 
-          <div className="py-4 px-6 text-xs text-center text-muted-foreground bg-muted border-t rounded-b-lg">
-            Secured by{" "}
+          <div className="rounded-b-lg border-t bg-muted px-6 py-4 text-center text-xs text-muted-foreground">
+            Kyro is free forever ·{" "}
             <a
-              href="https://freebuff.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:text-primary transition-colors"
+              href="/terms"
+              className="underline transition-colors hover:text-primary"
             >
-              freebuff.com
+              Terms
+            </a>{" "}
+            ·{" "}
+            <a
+              href="/privacy"
+              className="underline transition-colors hover:text-primary"
+            >
+              Privacy
             </a>
           </div>
         </Card>
-        </div>
-      </div>
+      </main>
     </div>
   );
 }

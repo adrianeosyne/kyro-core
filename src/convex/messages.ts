@@ -13,7 +13,6 @@ import {
   MAX_ATTACHMENT_BYTES,
   MAX_MESSAGE_LENGTH,
   notify,
-  permissionsFor,
   requireProfile,
   requireServerAccess,
   requireUser,

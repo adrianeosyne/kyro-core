@@ -1,112 +1,277 @@
-import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
+import { Ban, Check, Clock, MessageCircle, UserPlus, X } from "lucide-react";
+import { useState } from "react";
+import { useNavigate, useSearchParams } from "react-router";
+import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { formatRelative } from "@/lib/format";
 import { UserAvatar } from "@/components/app/UserAvatar";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { toast } from "sonner";
-import { Send, Check, X } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { PRESENCE_META, formatRelative } from "@/lib/format";
 
-const sendFriendRequest = api.social.sendRequest;
-const sendRespondsocial = api.social.respond;
-const sendBlock = api.social.block;
-const sendUnblock = api.social.unblock;
-const sendCreateDirect = api.conversations.createDirect;
-
-export function ProfileCard({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const [params] = useSearchParams();
+/**
+ * User profile popup. Opened anywhere by adding `?user=<id>` to the current
+ * URL; it closes itself by removing the parameter again.
+ */
+export function ProfileCard() {
+  const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
   const userId = params.get("user");
-  useEffect(() => { if (!userId) onOpenChange(false); }, [userId, onOpenChange]);
-  if (!userId) return null;
+  const [busy, setBusy] = useState(false);
 
   const profile = useQuery(
+    api.users.profile,
     userId ? { userId: userId as Id<"users"> } : "skip",
-    userId as Id<"users">,
   );
   const social = useQuery(
+    api.social.mutualContext,
     userId ? { userId: userId as Id<"users"> } : "skip",
-    userId as Id<"users"> ? userId as Id<"users"> : undefined,
   );
-  if (!profile?.user) return null;
+  const lists = useQuery(api.social.list);
 
-  const isFriend = social?.friendship === "accepted";
-  const pendingOut = (social?.outgoing ?? []).find((r: any) => (r as any)?._id === userId);
-  const pendingIn = (social?.incoming ?? []).find((r: any) => (r as any)?._id === userId);
-  const canDM = userId !== (profile.user._id ?? "");
-  const [creating, setCreating] = useState(false);
+  const sendRequest = useMutation(api.social.sendRequest);
+  const respond = useMutation(api.social.respond);
+  const cancel = useMutation(api.social.cancel);
+  const removeFriend = useMutation(api.social.removeFriend);
+  const block = useMutation(api.social.block);
+  const unblock = useMutation(api.social.unblock);
+  const createDirect = useMutation(api.conversations.createDirect);
 
-  async function sendMessage() {
-    if (creating || !userId) return;
-    setCreating(true);
+  const close = (open: boolean) => {
+    if (open) return;
+    const next = new URLSearchParams(params);
+    next.delete("user");
+    setParams(next, { replace: true });
+  };
+
+  const run = async (action: Promise<unknown>, successMessage?: string) => {
+    if (busy) return;
+    setBusy(true);
     try {
-      const convId = await sendCreateDirect.mutateAsync({ userId: userId as Id<"users"> });
-      if (!convId) return;
-      window.location.assign(`/dashboard/dm/${convId}`);
-    } catch (e) { toast.error((e as Error)?.message ?? "Could not open DM."); }
-    finally { setCreating(false); }
-  }
+      await action;
+      if (successMessage) toast.success(successMessage);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Something went wrong.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
 
-  async function sendFriendRequest() {
+  const openMessage = async () => {
     if (!userId) return;
-    try { await sendFriendRequest.mutateAsync({ userId: userId as Id<"users"> }); }
-    catch (e) { toast.error((e as Error)?.message ?? "Could not send request."); }
-  }
+    await run(
+      createDirect({ userId: userId as Id<"users"> }).then((conversationId) => {
+        close(false);
+        navigate(`/dashboard/dm/${conversationId}`);
+      }),
+    );
+  };
 
-  async function sendRespond(connId: Id<"connections"> | null, accept: boolean) {
-    if (!connId) return;
-    try { await sendRespondsocial.mutateAsync({ connectionId: connId, accept }); }
-    catch (e) { toast.error((e as Error)?.message ?? "Could not respond."); }
-  }
+  if (!userId) return null;
+
+  const user = profile?.user;
+  const incoming = lists?.incoming.find((row) => row.user?.id === userId);
+  const outgoing = lists?.outgoing.find((row) => row.user?.id === userId);
+  const isFriend = social?.friendship === "accepted";
+  const isBlocked = (lists?.blocked ?? []).some((row) => row.user?.id === userId);
+  const presenceMeta = user
+    ? PRESENCE_META[(user.presence as keyof typeof PRESENCE_META) ?? "offline"]
+    : null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open onOpenChange={close}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
-            <UserAvatar user={profile.user} size="lg" />
-            <div>
-              <p className="font-semibold truncate">{profile.user.name}</p>
-              <p className="text-sm text-muted-foreground truncate">@{profile.user.username}</p>
-            </div>
+            {user ? (
+              <>
+                <UserAvatar user={user} size="lg" />
+                <div className="min-w-0">
+                  <p className="truncate font-semibold">{user.name}</p>
+                  <p className="truncate text-sm text-muted-foreground">
+                    {user.username ? `@${user.username}` : "no username yet"}
+                  </p>
+                </div>
+              </>
+            ) : (
+              <span className="text-muted-foreground">Loading profile…</span>
+            )}
           </DialogTitle>
-        </DialogHeader>
-        <ScrollArea className="h-[220px]">
-          <div className="px-1 space-y-2">
-            {profile.user.bio && <p className="rounded-md border border-border/70 bg-surface p-3 text-sm">{profile.user.bio}</p>}
-            {profile.user.customStatus && <p className="text-sm text-muted-foreground">{profile.user.customStatus}</p>}
-            {profile.user.lastSeen != null && <p className="text-xs text-muted-foreground">Last seen {formatRelative(Number(formatRelative(profile.user.lastSeen))}</p>}
-            <div className="mt-3 border-t border-border/70 pt-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Shared communities</p>
-              <div className="flex flex-wrap gap-1.5 mt-1.5">
-                {(social as unknown as any[])?.slice(0,8).map((f:any,i:any) => <UserAvatar key={f?._id ?? i} user={f as any} size="sm" className="opacity-90" />)}
-              </div>
-            </div>
-          </div>
-        </ScrollArea>
-        <DialogFooter className="gap-2">
-          {isFriend ? (<Button variant="ghost" onClick={onOpenChange}>Close</Button>)
-          ) : pendingIn ? (
-            <>
-              <Button variant="ghost" onClick={() => void sendRespondsocial.mutateAsync({ connectionId: pendingIn!._id, accept: false })}><X className="mr-2 size-4" /> Ignore</Button>
-              <Button onClick={() => void sendRespondsocial.mutateAsync({ connectionId: pendingIn!._id, accept: true })}><Check className="mr-2 size-4" /> Accept</Button>
-            </>
-          ) : pendingOut ? (
-            <Button variant="ghost" onClick={() => void sendRespondsocial.mutateAsync({ connectionId: pendingOut!._id, accept: false })}><X className="mr-2 size-4" /> Cancel</Button>
-          ) : canDM ? (
-            <Button onClick={sendMessage}><Send className="mr-2 size-4" /> Message</Button>
-          ) : (
-            <Button variant="outline" onClick={sendFriendRequest}>Add friend</Button>
+          {user && presenceMeta && (
+            <DialogDescription className="flex items-center gap-1.5">
+              <span
+                className={`inline-block size-2 rounded-full ${presenceMeta.dot}`}
+              />
+              {user.customStatus || presenceMeta.label}
+              {user.lastSeen != null && (
+                <span className="text-muted-foreground/80">
+                  · last seen {formatRelative(user.lastSeen)}
+                </span>
+              )}
+            </DialogDescription>
           )}
-        </DialogFooter>
+        </DialogHeader>
+
+        {user && (
+          <div className="space-y-3">
+            {user.bio && (
+              <p className="rounded-md border border-border/70 bg-surface p-3 text-sm">
+                {user.bio}
+              </p>
+            )}
+
+            {profile && profile.mutualServers.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Mutual communities · {profile.mutualServers.length}
+                </p>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {profile.mutualServers.map((server) => (
+                    <button
+                      key={server.id}
+                      type="button"
+                      onClick={() => {
+                        close(false);
+                        navigate(`/dashboard/s/${server.id}`);
+                      }}
+                      className="rounded-md border border-border/70 bg-surface px-2 py-0.5 text-xs transition-colors hover:border-primary/40"
+                    >
+                      {server.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {social && !social.canMessage && social.messageReason && (
+              <p className="text-xs text-muted-foreground">{social.messageReason}</p>
+            )}
+          </div>
+        )}
+
+        <div className="flex flex-wrap justify-end gap-2 border-t border-border/60 pt-3">
+          {incoming && (
+            <>
+              <Button
+                variant="ghost"
+                disabled={busy}
+                onClick={() =>
+                  void run(
+                    respond({
+                      connectionId: incoming.connectionId as Id<"connections">,
+                      accept: false,
+                    }),
+                  )
+                }
+              >
+                <X className="mr-1.5 size-4" /> Ignore
+              </Button>
+              <Button
+                disabled={busy}
+                onClick={() =>
+                  void run(
+                    respond({
+                      connectionId: incoming.connectionId as Id<"connections">,
+                      accept: true,
+                    }),
+                    "You are now friends.",
+                  )
+                }
+              >
+                <Check className="mr-1.5 size-4" /> Accept
+              </Button>
+            </>
+          )}
+
+          {outgoing && (
+            <Button
+              variant="outline"
+              disabled={busy}
+              onClick={() =>
+                void run(
+                  cancel({
+                    connectionId: outgoing.connectionId as Id<"connections">,
+                  }),
+                  "Request cancelled.",
+                )
+              }
+            >
+              <Clock className="mr-1.5 size-4" /> Cancel request
+            </Button>
+          )}
+
+          {!incoming && !outgoing && !isFriend && !isBlocked && (
+            <Button
+              variant="outline"
+              disabled={busy}
+              onClick={() =>
+                void run(
+                  sendRequest({ userId: userId as Id<"users"> }),
+                  "Friend request sent.",
+                )
+              }
+            >
+              <UserPlus className="mr-1.5 size-4" /> Add friend
+            </Button>
+          )}
+
+          {isFriend && (
+            <Button
+              variant="ghost"
+              disabled={busy}
+              onClick={() =>
+                void run(
+                  removeFriend({ userId: userId as Id<"users"> }),
+                  "Friend removed.",
+                )
+              }
+            >
+              Remove friend
+            </Button>
+          )}
+
+          {isBlocked ? (
+            <Button
+              variant="outline"
+              disabled={busy}
+              onClick={() =>
+                void run(
+                  unblock({ userId: userId as Id<"users"> }),
+                  "User unblocked.",
+                )
+              }
+            >
+              Unblock
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              disabled={busy}
+              onClick={() =>
+                void run(block({ userId: userId as Id<"users"> }), "User blocked.")
+              }
+            >
+              <Ban className="mr-1.5 size-4" /> Block
+            </Button>
+          )}
+
+          <Button
+            disabled={busy || (social ? !social.canMessage : false)}
+            onClick={() => void openMessage()}
+          >
+            <MessageCircle className="mr-1.5 size-4" /> Message
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );
 }
-
-import { sendFriendRequest as ff, sendRespondsocial as oo, sendBlock as bb, sendUnblock as uu, sendCreateDirect as cc } from "@/components/app/hooks/social";
-
-function friendButton() { return null; }

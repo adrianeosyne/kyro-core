@@ -89,7 +89,9 @@ export function MessageList({
   roleColors?: Record<string, string>;
 }) {
   const [olderPages, setOlderPages] = useState<MessageDto[][]>([]);
-  const [before, setBefore] = useState<number | null>(null);
+  const [cursor, setCursor] = useState<{ container: string; at: number } | null>(
+    null,
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const latest = useQuery(api.messages.list, {
@@ -98,25 +100,31 @@ export function MessageList({
     limit: 50,
   }) as MessageListResult | undefined;
 
+  // A cursor left behind by the previous conversation is ignored and cleared.
+  const activeCursor =
+    cursor && cursor.container === containerId ? cursor : null;
+
   const older = useQuery(
     api.messages.list,
-    before === null
+    activeCursor === null
       ? "skip"
-      : { containerType, containerId, before, limit: 50 },
+      : { containerType, containerId, before: activeCursor.at, limit: 50 },
   ) as MessageListResult | undefined;
 
-  // Reset local history whenever the conversation changes.
-  useEffect(() => {
+  // Reset local history whenever the conversation changes. Adjusting state
+  // during render keeps stale pages out of the new conversation's history.
+  const [historyKey, setHistoryKey] = useState(containerId);
+  if (historyKey !== containerId) {
+    setHistoryKey(containerId);
     setOlderPages([]);
-    setBefore(null);
-  }, [containerId]);
+    setCursor(null);
+  }
 
-  useEffect(() => {
-    if (older && before !== null) {
-      setOlderPages((pages) => [...pages, older.messages]);
-      setBefore(null);
-    }
-  }, [older, before]);
+  // Fold a freshly loaded older page into history as soon as it resolves.
+  if (older && activeCursor !== null) {
+    setOlderPages([...olderPages, older.messages]);
+    setCursor(null);
+  }
 
   const messages = useMemo(() => {
     const map = new Map<string, MessageDto>();
@@ -152,15 +160,18 @@ export function MessageList({
       ) : (
         <>
           <div className="mb-3 flex justify-center">
-            {before === null && latest.hasMore ? (
+            {activeCursor === null && latest.hasMore ? (
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => latest.oldest !== null && setBefore(latest.oldest)}
+                onClick={() =>
+                  latest.oldest !== null &&
+                  setCursor({ container: containerId, at: latest.oldest })
+                }
               >
                 Load earlier messages
               </Button>
-            ) : before !== null ? (
+            ) : activeCursor !== null ? (
               <Loader2 className="size-4 animate-spin text-muted-foreground" />
             ) : null}
           </div>
@@ -244,12 +255,8 @@ function EmptyConversation({
 function MessageRow({
   message,
   grouped,
-  containerType,
-  containerId,
-  serverId,
   currentUserId,
   canManageMessages,
-  isLast,
   onReply,
   onReport,
   roleColors,

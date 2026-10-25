@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
 import { Paperclip, Send, Smile, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
@@ -49,8 +49,6 @@ export function Composer({
   const [busy, setBusy] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lastTypingRef = useRef(0);
-  const replyRef = useRef<ReplyTarget | null>(null);
-  replyRef.current = reply;
 
   useEffect(() => {
     const element = textareaRef.current;
