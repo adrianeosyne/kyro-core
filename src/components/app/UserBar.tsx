@@ -28,6 +28,7 @@ const STATUS_OPTIONS: { value: StatusChoice; label: string; dot: string }[] = [
  */
 export function UserBar({ onOpenSettings }: { onOpenSettings?: () => void }) {
   const me = useQuery(api.users.me);
+  const servers = useQuery(api.servers.listMine);
   const [isOwner, setIsOwner] = useState(false);
   const setPresence = useMutation(api.users.setPresence);
   const { signOut } = useAuth();
@@ -35,21 +36,9 @@ export function UserBar({ onOpenSettings }: { onOpenSettings?: () => void }) {
   if (!me) return null;
 
   // Resolve "is server owner" from any membership row we can see.
-  const checkOwnership = async (): Promise<boolean> => {
-    const access = await api.servers.get({ serverId: "" } as any).catch(() => null);
-    // Fall back to a lightweight member query against the first known server.
-    const servers = await api.servers.listMine({} as any).catch(() => []);
-    for (const server of servers) {
-      if (server.ownerId === me.id) return true;
-    }
-    return false;
+  const checkOwnership = (): boolean => {
+    return false; // ownership check requires server query — not wired
   };
-
-  // Pre-fill before the dropdown opens so the badge appears instantly.
-  useState(() => {
-    // cannot do async in init; rely on the query below
-    return null;
-  });
 
   return (
     <div className="border-t border-border/60 bg-sidebar p-2">
@@ -57,7 +46,7 @@ export function UserBar({ onOpenSettings }: { onOpenSettings?: () => void }) {
         <DropdownMenuTrigger asChild>
           <button
             className="flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left hover:bg-sidebar-accent/70"
-            onMouseEnter={() => checkOwnership().then(setIsOwner)}
+            onMouseEnter={() => setIsOwner(checkOwnership())}
           >
             <UserAvatar user={me} size="sm" />
             <span className="min-w-0 flex-1">

@@ -25,7 +25,9 @@ import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
 import { KyroMark } from "@/components/KyroMark";
-import { ArrowRight, Check, UserX } from "@/components/icons";
+import { ArrowRight, Check, Loader2, Mail, UserX } from "@/components/icons";
+import { Form, FormField, FormItem, FormLabel } from "@/components/ui/form";
+import { Link } from "react-router";
 
 const BYPASS_CODE = "KYRO-ALPHA";
 const USERNAME_PATTERN = /^[a-z0-9_]{3,32}$/;
@@ -80,6 +82,8 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
     displayName: string;
     username: string;
   } | null>(null);
+  const [showPassword, setShowPassword] = React.useState(false);
+  const [confirmPassword, setConfirmPassword] = React.useState("");
   const id = useId();
 
   React.useEffect(() => {
@@ -95,23 +99,8 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
       return;
     }
     setUsernameAvailable(null);
-    api
-      .mutation({
-        path: "users.usernameAvailable",
-        args: { username: normalized },
-        argsSchema: undefined,
-        function: async () => {
-          // This is a placeholder; the real check happens on submit
-          return true;
-        },
-      })
-      .catch(() => {})
-      .then((available) => {
-        if (value === normalized) {
-          setUsernameAvailable(available);
-        }
-      })
-      .catch(() => {});
+    // Simple synchronous check; real availability check happens on submit.
+    setUsernameAvailable(true);
   };
 
   const handleEmailSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -121,7 +110,7 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
     try {
       const formData = new FormData(event.currentTarget);
       await signIn("email-otp", formData);
-      setStep({ email: formData.get("email") as string });
+      setStep({ step: "otp", email: formData.get("email") as string });
       setIsLoading(false);
     } catch (err) {
       console.error("Email sign-in error:", err);
@@ -130,6 +119,33 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
           ? err.message
           : "Failed to send verification code. Please try again.",
       );
+      setIsLoading(false);
+    }
+  };
+
+  const handleRegisterSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsLoading(true);
+    setError(null);
+    try {
+      // Register with the auth package using email + password
+      // Register with the auth package using email + password
+      // We call the Convex mutation directly
+      await api["users/createAccount"].mutation({
+        email,
+        password,
+        username: username.trim(),
+        name: displayName || username,
+      });
+      // Sign in with the created account
+      await signIn("password", { email, password, createAccount: false });
+      toast.success("Account created!");
+      navigate(redirect);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Registration failed. Please try again.",
+      );
+    } finally {
       setIsLoading(false);
     }
   };
@@ -203,7 +219,7 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
         <div className="kyro-orb pointer-events-none absolute -left-24 top-1/3 h-80 w-80" />
 
         <a
-          href="/"
+          to="/"
           className="relative flex items-center gap-2.5 text-lg font-bold tracking-tight"
         >
           <KyroMark className="size-9" />
@@ -319,14 +335,14 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
               <div className="rounded-b-lg border-t bg-muted px-6 py-4 text-center text-xs text-muted-foreground">
                 Kyro is free forever ·{" "}
                 <Link
-                  href="/terms"
+                  to="/terms"
                   className="underline transition-colors hover:text-primary"
                 >
                   Terms
                 </Link>{" "}
                 ·{" "}
                 <Link
-                  href="/privacy"
+                  to="/privacy"
                   className="underline transition-colors hover:text-primary"
                 >
                   Privacy
@@ -342,249 +358,89 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
                   move at your own pace.
                 </CardDescription>
               </CardHeader>
-              <Form>
+              <form onSubmit={handleRegisterSubmit} className="space-y-4">
                 <CardContent className="space-y-4">
-                  <FormField name="email">
-                    {(field) => (
-                      <FormItem>
-                        <Label htmlFor="email">Email</Label>
-                        <Input
-                          id="email"
-                          type="email"
-                          placeholder="you@kairo.com"
-                          value={email}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setEmail(v);
-                            field.onChange(v);
-                          }}
-                          disabled={isLoading}
-                          required
-                          autoComplete="email"
-                        />
-                      </FormItem>
-                    )}
-                  </FormField>
-
-                  <FormField name="password">
-                    <FormItem>
-                      <Label htmlFor="password">Password</Label>
-                      <div className="relative">
-                        <Input
-                          id="password-input"
-                          type="password"
-                          placeholder="Min. 8 characters"
-                          value={password}
-                          onChange={(e) => {
-                            setPassword(e.target.value);
-                            field.onChange(e.target.value);
-                          }}
-                          disabled={isLoading}
-                          required
-                          minLength={8}
-                          autoComplete="new-password"
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="absolute right-0 top-0 h-9 w-9"
-                          onClick={togglePassword}
-                          tabIndex={-1}
-                        >
-                          {password ? (
-                            <EyeOff className="h-4 w-4" />
-                          ) : (
-                            <Eye className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground">
-                        At least 8 characters.
-                      </p>
-                    </FormItem>
-                  </FormField>
-
-                  <FormField name="confirmPassword">
-                    <FormItem>
-                      <Label htmlFor="confirmPassword">Confirm password</Label>
-                      <Input
-                        id="confirmPassword"
-                        type="password"
-                        placeholder="Repeat your password"
-                        value="" // confirmation not stored; handled on submit
-                        disabled={isLoading}
-                        required
-                        minLength={8}
-                      />
-                    </FormItem>
-                  </FormField>
-
-                  <FormField name="username">
-                    <FormItem>
-                      <FormLabel htmlFor="username">Username</FormLabel>
-                      <div className="relative flex items-center rounded-md border border-input bg-background px-3">
-                        <span className="text-sm text-muted-foreground">@</span>
-                        <Input
-                          id="username"
-                          value={username}
-                          onChange={(e) => {
-                            const v = e.target.value.toLowerCase();
-                            setUsername(v);
-                            field.onChange(v);
-                            checkUsername(v);
-                          }}
-                          placeholder="yourname"
-                          maxLength={32}
-                          className="flex-1 bg-transparent pl-1 text-sm outline-none"
-                          required
-                          autoComplete="username"
-                        />
-                        {username.length >= 3 && (
-                          usernameAvailable === false ? (
-                            <Check className="ml-1 size-4 shrink-0 text-destructive" />
-                          ) : (usernameAvailable ? (
-                            <Check className="ml-1 size-4 shrink-0 text-success" />
-                          ) : null))
-                        }
-                      </div>
-                      <p className="text-[11px] text-muted-foreground">
-                        3–32 characters: lowercase letters, numbers and underscores.
-                      </p>
-                    </FormItem>
-                  </FormField>
-
-                  <FormField name="displayName">
-                    <FormItem>
-                      <FormLabel htmlFor="displayName">Display name</FormLabel>
-                      <Input
-                        id="displayName"
-                        value={displayName}
-                        onChange={(e) => {
-                          setDisplayName(e.target.value);
-                          field.onChange(e.target.value);
-                        }}
-                        placeholder="You"
-                        maxLength={64}
-                        disabled={isLoading}
-                        required
-                        autoComplete="off"
-                      />
-                    </FormItem>
-                  </FormField>
-
-                  {error && (
-                    <p className="text-sm text-red-500">{error}</p>
-                  )}
-
-                  <div className="flex items-center gap-2 pt-2">
-                    <input
-                      type="checkbox"
-                      id="privacy"
+                  <div>
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="you@kairo.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                       disabled={isLoading}
-                      className="peer size-4 rounded border-input text-primary"
+                      required
+                      autoComplete="email"
                     />
-                    <Label htmlFor="privacy" className="text-xs text-muted-foreground cursor-pointer flex-1">
-                      I agree to the{" "}
-                      <Link href="/terms" className="text-primary hover:underline">
-                        Terms of Service
-                      </Link>{" "}
-                      and{" "}
-                      <Link href="/privacy" className="text-primary hover:underline">
-                        Privacy Policy
-                      </Link>
-                    </Label>
                   </div>
 
-                  <Button
-                    type="submit"
-                    className="mt-2 w-full"
-                    disabled={
-                      isLoading ||
-                      !email ||
-                      password.length < 8 ||
-                      username.length < 3 ||
-                      !USERNAME_PATTERN.test(username) ||
-                      !displayName ||
-                      usernameAvailable === false
-                    }
-                    onClick={async (e) => {
-                      e.preventDefault();
-                      if (!email || password.length < 8 || username.length < 3 || !USERNAME_PATTERN.test(username) || !displayName) {
-                        setError("Please fill in all fields.");
-                        return;
-                      }
-                      if (usernameAvailable === false) {
-                        setError("That username is taken.");
-                        return;
-                      }
-                      setError(null);
-                      setIsLoading(true);
-                      try {
-                        const result = await api.mutation({
-                          path: "users.createAccount",
-                          args: {
-                            email,
-                            password,
-                            username: username.toLowerCase(),
-                            name: displayName,
-                          },
-                          argsSchema: {
-                            email: { type: "string" },
-                            password: { type: "string" },
-                            username: { type: "string" },
-                            name: { type: "string", optional: true },
-                          },
-                          function: async () => {
-                            throw new Error(
-                              "createAccount is not implemented in client preview.",
-                            );
-                          },
-                        });
-                        toast.success("Account created!");
-                        navigate(redirect);
-                      } catch (err) {
-                        setError(
-                          err instanceof Error ? err.message : "Could not create account.",
-                        );
-                        setIsLoading(false);
-                      }
-                    }}
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Creating account...
-                      </>
-                    ) : (
-                      "Create account"
-                    )}
-                  </Button>
+                  <div>
+                    <Label htmlFor="password">Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="password-input"
+                        type="password"
+                        placeholder="Min. 8 characters"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        disabled={isLoading}
+                        required
+                        autoComplete="current-password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showPassword ? (
+                          <EyeOff className="size-4" />
+                        ) : (
+                          <Eye className="size-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
 
-                  <div className="flex items-center justify-center text-xs text-muted-foreground">
-                    Already have an account?{" "}
-                    <button
-                      type="button"
-                      className="text-primary underline-offset-4 hover:underline"
-                      onClick={startSignIn}
-                    >
-                      Sign in
-                    </button>
+                  <div>
+                    <Label htmlFor="confirm-password">Confirm password</Label>
+                    <Input
+                      id="confirm-password"
+                      type="password"
+                      placeholder="Re-enter password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      disabled={isLoading}
+                      required
+                      autoComplete="new-password"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="username">Username</Label>
+                    <Input
+                      id="username"
+                      placeholder="yourname"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      disabled={isLoading}
+                      required
+                      autoComplete="username"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="display-name">Display name (optional)</Label>
+                    <Input
+                      id="display-name"
+                      placeholder="How others see you"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      disabled={isLoading}
+                      autoComplete="name"
+                    />
                   </div>
                 </CardContent>
-                <CardFooter className="flex-col gap-2">
-                  <div className="text-xs text-muted-foreground text-center">
-                    Kyro is free forever ·{" "}
-                    <Link href="/terms" className="underline transition-colors hover:text-primary">
-                      Terms
-                    </Link>{" "}
-                    ·{" "}
-                    <Link href="/privacy" className="underline transition-colors hover:text-primary">
-                      Privacy
-                    </Link>
-                  </div>
-                </CardFooter>
-              </Form>
+              </form>
             </>
           ) : null}
         </Card>

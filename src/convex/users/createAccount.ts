@@ -1,7 +1,7 @@
 import { v } from "convex/values";
-import { mutation } from "./_generated/server";
-import { requireProfile, type Ctx } from "./lib";
-import { convexAuth } from "@convex-dev/auth/server";
+import { mutation, action } from "../_generated/server";
+import { requireProfile, type Ctx } from "../lib";
+import { convexAuth, createAccount } from "@convex-dev/auth/server";
 
 /** Register a new account with email + password. No email verification is
  *  sent: the password provider hashes the password with Scrypt and signs the
@@ -16,7 +16,7 @@ export const createKyroAccount = mutation({
   handler: async (ctx, { email, password, username, name }) => {
     const { id } = await requireProfile(ctx);
 
-    const { account, user } = await createAccount(ctx, {
+    const { account, user } = await createAccount(ctx as any, {
       provider: "password",
       account: {
         id: email.toLowerCase(),
@@ -31,6 +31,7 @@ export const createKyroAccount = mutation({
       shouldLinkViaEmail: false,
       shouldLinkViaPhone: false,
     });
+    
 
     // Patch the Kyro profile with the handle and display name we recorded
     // because the generic account creation does not know about them.
