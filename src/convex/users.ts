@@ -94,6 +94,13 @@ export const updateProfile = mutation({
     customStatus: v.optional(v.string()),
     accent: v.optional(v.string()),
     avatarStorageId: v.optional(v.union(v.id("_storage"), v.null())),
+    status: v.optional(v.union(
+      v.literal("online"),
+      v.literal("idle"),
+      v.literal("dnd"),
+      v.literal("invisible"),
+      v.literal("offline"),
+    )),
   },
   handler: async (ctx, args) => {
     const { id, user } = await requireUser(ctx);
@@ -112,6 +119,10 @@ export const updateProfile = mutation({
         throw new Error("Accent must be a hex colour like #67E8F9.");
       }
       patch.accent = args.accent || undefined;
+    }
+    if (args.status !== undefined) {
+      patch.status = args.status;
+      patch.lastSeen = Date.now();
     }
     if (args.avatarStorageId !== undefined) {
       if (args.avatarStorageId === null) {

@@ -464,6 +464,27 @@ export const Sparkles = (props: IconProps) => (
   </Icon>
 );
 
+export const Bold = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z" />
+    <path d="M6 12h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z" />
+  </Icon>
+);
+
+export const Eye = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+    <circle cx="12" cy="12" r="3" />
+  </Icon>
+);
+
+export const EyeOff = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+    <path d="m16.5 16.5 3.5 3.5" />
+    <circle cx="12" cy="12" r="3" />
+  </Icon>
+);
 export const Zap = (props: IconProps) => (
   <Icon {...props}>
     <path d="M13.5 2.5 4.5 13.7h6.3l-.9 7.8 9.1-11.4h-6.3l.8-7.6Z" />

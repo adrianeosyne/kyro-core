@@ -8,10 +8,9 @@ import { ChannelChat, DirectChat } from "@/components/app/ChatView";
 import { FriendsView } from "@/components/app/Friends";
 import { ServerSettings } from "@/components/app/ServerSettings";
 
-/**
- * The signed-in product: everything lives inside the AppShell frame and is
- * routed underneath it — friends home, DMs, community channels and the
- * community settings panel.
+/** The signed-in product: everything lives inside the AppShell frame and is
+ *  routed underneath it — friends home, DMs, community channels and the
+ *  community settings panel.
  */
 export default function Dashboard() {
   return (
@@ -23,6 +22,8 @@ export default function Dashboard() {
         <Route path="s/:serverId" element={<ServerIndexRoute />} />
         <Route path="s/:serverId/c/:channelId" element={<ChannelRoute />} />
         <Route path="s/:serverId/settings/*" element={<ServerSettingsRoute />} />
+        {/* Wildcard must be last: any unknown slug within the dashboard falls back
+            to the current community instead of a hard 404. */}
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </AppShell>

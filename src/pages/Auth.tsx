@@ -412,11 +412,10 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
                         id="confirmPassword"
                         type="password"
                         placeholder="Repeat your password"
-                        value={/* confirmation not stored; handled on submit */ ""}
+                        value="" // confirmation not stored; handled on submit
                         disabled={isLoading}
                         required
                         minLength={8}
-                      // confirmation handled via button text below
                       />
                     </FormItem>
                   </FormField>
@@ -444,9 +443,10 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
                         {username.length >= 3 && (
                           usernameAvailable === false ? (
                             <Check className="ml-1 size-4 shrink-0 text-destructive" />
-                          ) : usernameAvailable ? (
+                          ) : (usernameAvailable ? (
                             <Check className="ml-1 size-4 shrink-0 text-success" />
-                          ) : null}
+                          ) : null))
+                        }
                       </div>
                       <p className="text-[11px] text-muted-foreground">
                         3–32 characters: lowercase letters, numbers and underscores.
