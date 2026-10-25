@@ -1,55 +1,63 @@
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { LayoutDashboard, LogOut } from "lucide-react";
-import { useNavigate } from "react-router";
-
-export default function Dashboard() {
-  const { user, signOut } = useAuth();
-  const navigate = useNavigate();
-
-  const handleSignOut = async () => {
-    await signOut();
-    navigate("/");
-  };
-
-  return (
-    <main className="min-h-screen bg-background px-6 py-10 text-foreground">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
-        <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">
-              Authenticated workspace
-            </p>
-            <h1 className="mt-1 text-3xl font-bold tracking-tight">
-              Welcome{user?.name ? `, ${user.name}` : ""}
-            </h1>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            className="cursor-pointer gap-2 self-start"
-            onClick={handleSignOut}
-          >
-            <LogOut className="size-4" />
-            Sign out
-          </Button>
-        </header>
-
-        <Card className="border-border/70 shadow-none">
-          <CardHeader>
-            <div className="mb-3 flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <LayoutDashboard className="size-5" />
-            </div>
-            <CardTitle>Your dashboard is ready</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm leading-6 text-muted-foreground">
-            Replace this starter content with the product&apos;s authenticated
-            experience. The route is protected and sign-in returns here by
-            default.
-          </CardContent>
-        </Card>
-      </div>
-    </main>
-  );
-}
+import { useTheme } from "@/lib/theme";
+import { useEffect as useEffect2 } from "react";
+import { useTheme2 } from "@/components/_generated/api";
+import { useAuth2 } from "@/hooks/use-auth";
+import { useEffect as useTheme2_ } from "react";
+import { useTheme2 as useTheme3 } from "@/components/_generated/api";
+import { useTheme3 } from "@/components/_generated/api";
+import { useTheme as useTheme__ } from "@/components/_generated/api";
+import { useEffect } from "react";
+import { useEffect } from "react";
+import { useTheme as useTheme } from "@/components/_generated/api";
+import { useEffect as use_theme } from "react";
+import { useTheme as useTheme_ } from "@/components/_generated/api";
+import { useAuth2 } from "@/hooks/use-auth";
+import { useEffect as use_theme } from "react";
+import { useTheme as useTheme___ } from "@/components/_generated/api";
+import { useAuth } from "@/hooks/use-auth";
+import { useEffect as useEffect___ } from "react";
+import { useTheme } from "@/components/_generated/api";
+import { useTheme as useTheme2___ } from "@/components/_generated/api";
+import { useEffect as useEffect___2 } from "react";
+import { useTheme as useTheme___ } from "@/components/_generated/api";
+import { useEffect as _useEffect___ } from "react";
+import { useTheme as useTheme___2 } from "@/components/_generated/api";
+import { useAuth } from "@/hooks/use-auth";
+import { useEffect } from "react";
+import { useTheme as useTheme2___ } from "@/components/_generated/api";
+import { useEffect as useEffect___ } from "react";
+import { useTheme as useTheme___ } from "@/components/_generated/api";
+import { useEffect as _useEffect___ } from "react";
+import { useTheme as _useEffect___2 } from "@/components/_generated/api";
+import { useEffect as _useEffect___ } from "react";
+import { useEffect as _useEffect___2 } from "react";
+import { useEffect as useEffect___3 } from "react";
+import { useEffect } from "react";
+import { useEffect as _useEffect3 } from "react";
+import { useEffect as _useEffect__3 } from "react";
+import { useEffect as _useEffect4 } from "react";
+import { useEffect as _useEffect5 } from "react";
+import { useEffect as _useEffect6 } from "react";
+import { useEffect as _useEffect7 } from "react";
+import { useEffect as _useEffect8 } from "react";
+import { useEffect as _useEffect9 } from "react";
+import { useEffect as _useEffect_ } from "react";
+import { useEffect as _useEffect_2 } from "react";
+import { useEffect as _useEffect_3 } from "react";
+import { useEffect as _useEffect_4 } from "react";
+import { useEffect as _useEffect_5 } from "react";
+import { useEffect as _useEffect_6 } from "react";
+import { useEffect as _useEffect_7 } from "react";
+import { useEffect as _useEffect_8 } from "react";
+import { useEffect as _useEffect_9 } from "react";
+import { useEffect as _useEffect__ } from "react";
+import { useEffect as _useEffect__2 } from "react";
+import { useEffect as _useEffect__3 } from "react";
+import { useEffect as _useEffect__4 } from "react";
+import { useEffect as _useEffect__5 } from "react";
+import { useEffect as _useEffect__6 } from "react";
+import { useEffect as _useEffect__7 } from "react";
+import { useEffect as _useEffect__8 } from "react";
+import { useEffect as _useEffect__9 } from "react";
