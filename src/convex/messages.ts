@@ -289,7 +289,12 @@ export const send = mutation({
       .order("desc")
       .take(DEFAULT_RATE_WINDOW_MESSAGES);
     const windowStart = Date.now() - SENDER_COOLDOWN_MS;
-    if (recentMine.every((message) => message.createdAt > windowStart)) {
+    // Only rate-limit once the window is actually full. `every()` on an empty
+    // (or short) history is true, which would reject an account's first post.
+    if (
+      recentMine.length >= DEFAULT_RATE_WINDOW_MESSAGES &&
+      recentMine.every((message) => message.createdAt > windowStart)
+    ) {
       throw new Error("You're sending messages too quickly. Take a breath.");
     }
 

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { Crown } from "@/components/icons";
 import { UserAvatar } from "@/components/app/UserAvatar";
 import { Input } from "@/components/ui/input";
 import type { PresenceState } from "@/lib/format";
@@ -79,8 +80,12 @@ export function MemberList({ serverId }: { serverId: string }) {
             {member.nickname ?? member.user.name}
           </span>
           {member.isOwner && (
-            <span className="rounded bg-warning/15 px-1 text-[10px] font-semibold text-warning">
-              OWNER
+            <span
+              title="Server owner"
+              className="inline-flex shrink-0 items-center text-warning"
+            >
+              <Crown className="size-3.5" />
+              <span className="sr-only">Server owner</span>
             </span>
           )}
         </span>

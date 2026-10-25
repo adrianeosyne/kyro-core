@@ -10,6 +10,7 @@ import { SearchOverlay } from "@/components/app/SearchOverlay";
 import { ServerRail } from "@/components/app/ServerRail";
 import { SettingsDialog } from "@/components/app/Settings";
 import { Sidebar } from "@/components/app/Sidebar";
+import { UserBar } from "@/components/app/UserBar";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/use-auth";
@@ -143,6 +144,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
 
         <main className="min-h-0 flex-1">{children}</main>
+
+        {/* Phone: the account panel stays pinned to the bottom-left, since
+            the desktop rail and sidebar are hidden below `md`. */}
+        <div className="md:hidden">
+          <UserBar onOpenSettings={openSettings} />
+        </div>
       </div>
 
       {/* Mobile navigation drawer keeps the rail + sidebar reachable. */}

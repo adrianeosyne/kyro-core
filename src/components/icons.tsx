@@ -325,6 +325,12 @@ export const ShieldCheck = (props: IconProps) => (
   </Icon>
 );
 
+export const Crown = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M3.5 7.5 6.8 11.2 12 4.5l5.2 6.7 3.5-3.7-1.7 11H5.2Z" />
+  </Icon>
+);
+
 export const ShieldAlert = (props: IconProps) => (
   <Icon {...props}>
     <path d="M12 3.2 5 5.6v5.7c0 4.3 2.9 7.5 7 9.5 4.1-2 7-5.2 7-9.5V5.6Z" />

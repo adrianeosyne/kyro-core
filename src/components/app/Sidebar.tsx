@@ -296,20 +296,41 @@ function ServerSection({ serverId }: { serverId: string }) {
 /* Home sidebar: friends + direct messages                             */
 /* ------------------------------------------------------------------ */
 
+/**
+ * What a conversation is called in the list: its group name when it has one,
+ * otherwise the other participants — a 1:1 DM is labelled with the person you
+ * are talking to, never with your own name.
+ */
+function conversationLabel(
+  conversation: {
+    name: string | null;
+    participants: { id: string; name: string }[];
+  },
+  viewerId: string | undefined,
+): string {
+  if (conversation.name) return conversation.name;
+  const others = conversation.participants.filter(
+    (user) => user.id !== viewerId,
+  );
+  const names = (others.length > 0 ? others : conversation.participants).map(
+    (user) => user.name,
+  );
+  return names.join(", ") || "Conversation";
+}
+
 function HomeSection() {
   const conversations = useQuery(api.conversations.list);
   const social = useQuery(api.social.list);
+  const me = useQuery(api.users.me);
   const [query, setQuery] = useState("");
   const friendsMatch = useMatch("/dashboard");
 
   const pending = (social?.incoming.length ?? 0) + (social?.outgoing.length ?? 0);
   const filtered = (conversations ?? []).filter((conversation) => {
     if (!query.trim()) return true;
-    const label = (
-      conversation.name ??
-      conversation.participants.map((user) => user.name).join(", ")
-    ).toLowerCase();
-    return label.includes(query.toLowerCase());
+    return conversationLabel(conversation, me?.id)
+      .toLowerCase()
+      .includes(query.toLowerCase());
   });
 
   return (
@@ -361,10 +382,11 @@ function HomeSection() {
         </p>
       ) : (
         filtered.map((conversation) => {
-          const other = conversation.participants[0];
-          const label =
-            conversation.name ??
-            conversation.participants.map((user) => user.name).join(", ");
+          const others = conversation.participants.filter(
+            (user) => user.id !== me?.id,
+          );
+          const other = others[0];
+          const label = conversationLabel(conversation, me?.id);
           return (
             <Link
               key={conversation.id}
@@ -375,8 +397,12 @@ function HomeSection() {
                 user={{
                   id: conversation.id,
                   name: label,
-                  avatarUrl: conversation.type === "dm" ? (other?.avatarUrl ?? null) : null,
-                  presence: conversation.type === "dm" ? other?.presence : "offline",
+                  avatarUrl:
+                    conversation.type === "dm" ? (other?.avatarUrl ?? null) : null,
+                  presence:
+                    conversation.type === "dm" && other
+                      ? other.presence
+                      : "offline",
                 }}
                 size="sm"
                 showStatus={conversation.type === "dm"}
