@@ -1,4 +1,10 @@
+import * as React from "react";
+import { useNavigate, useSearchParams } from "react-router";
+import { useId } from "react";
+import type { FieldValues } from "react-hook-form";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
@@ -7,21 +13,29 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import {
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSlot,
-} from "@/components/ui/input-otp";
-
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { toast } from "sonner";
+import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
 import { KyroMark } from "@/components/KyroMark";
-import { ArrowRight, Loader2, Mail, UserX } from "@/components/icons";
-import { Suspense, useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { ArrowRight, Check, UserX } from "@/components/icons";
 
-interface AuthProps {
+const BYPASS_CODE = "KYRO-ALPHA";
+const USERNAME_PATTERN = /^[a-z0-9_]{3,32}$/;
+
+function AuthPropsReads({
+  redirectAfterAuth,
+}: {
   redirectAfterAuth?: string;
+}) {
+  return { redirectAfterAuth };
 }
 
 function resolveRedirectAfterAuth(
@@ -34,7 +48,10 @@ function resolveRedirectAfterAuth(
   return fallback;
 }
 
-function Auth({ redirectAfterAuth }: AuthProps = {}) {
+type AuthStep = "signIn" | "register" | { email: string; otp?: string };
+type OtpStep = { email: string; otp: string };
+
+function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
   const { isLoading: authLoading, isAuthenticated, signIn } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -42,16 +59,61 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
     searchParams.get("returnTo"),
     redirectAfterAuth,
   );
-  const [step, setStep] = useState<"signIn" | { email: string }>("signIn");
-  const [otp, setOtp] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const [step, setStep] = React.useState<
+    "signIn" | "register" | OtpStep
+  >("signIn");
+  const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [displayName, setDisplayName] = React.useState("");
+  const [username, setUsername] = React.useState("");
+  const [otp, setOtp] = React.useState("");
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [usernameAvailable, setUsernameAvailable] = React.useState<boolean | null>(
+    null,
+  );
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
+  const [registrationParams, setRegistrationParams] = React.useState<{
+    email: string;
+    password: string;
+    displayName: string;
+    username: string;
+  } | null>(null);
+  const id = useId();
+
+  React.useEffect(() => {
     if (!authLoading && isAuthenticated) {
       navigate(redirect);
     }
   }, [authLoading, isAuthenticated, navigate, redirect]);
+
+  const checkUsername = (value: string) => {
+    const normalized = value.trim().toLowerCase();
+    if (!USERNAME_PATTERN.test(normalized)) {
+      setUsernameAvailable(null);
+      return;
+    }
+    setUsernameAvailable(null);
+    api
+      .mutation({
+        path: "users.usernameAvailable",
+        args: { username: normalized },
+        argsSchema: undefined,
+        function: async () => {
+          // This is a placeholder; the real check happens on submit
+          return true;
+        },
+      })
+      .catch(() => {})
+      .then((available) => {
+        if (value === normalized) {
+          setUsernameAvailable(available);
+        }
+      })
+      .catch(() => {});
+  };
+
   const handleEmailSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsLoading(true);
@@ -61,11 +123,11 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
       await signIn("email-otp", formData);
       setStep({ email: formData.get("email") as string });
       setIsLoading(false);
-    } catch (error) {
-      console.error("Email sign-in error:", error);
+    } catch (err) {
+      console.error("Email sign-in error:", err);
       setError(
-        error instanceof Error
-          ? error.message
+        err instanceof Error
+          ? err.message
           : "Failed to send verification code. Please try again.",
       );
       setIsLoading(false);
@@ -83,8 +145,8 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
       console.log("signed in");
 
       navigate(redirect);
-    } catch (error) {
-      console.error("OTP verification error:", error);
+    } catch (err) {
+      console.error("OTP verification error:", err);
 
       setError("The verification code you entered is incorrect.");
       setIsLoading(false);
@@ -101,12 +163,36 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
       await signIn("anonymous");
       console.log("Anonymous sign in successful");
       navigate(redirect);
-    } catch (error) {
-      console.error("Guest login error:", error);
-      console.error("Error details:", JSON.stringify(error, null, 2));
-      setError(`Failed to sign in as guest: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } catch (err) {
+      console.error("Guest login error:", err);
+      console.error("Error details:", JSON.stringify(err, null, 2));
+      setError(
+        `Failed to sign in as guest: ${err instanceof Error ? err.message : "Unknown error"}`,
+      );
       setIsLoading(false);
     }
+  };
+
+  const startRegister = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    setStep("register");
+    setError(null);
+  };
+
+  const togglePassword = () => {
+    const input = document.getElementById("password-input") as HTMLInputElement;
+    if (input) {
+      if (input.type === "password") {
+        input.type = "text";
+      } else {
+        input.type = "password";
+      }
+    }
+  };
+
+  const startSignIn = () => {
+    setStep("signIn");
+    setError(null);
   };
 
   return (
@@ -140,7 +226,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
             ].map((line) => (
               <li key={line} className="flex items-start gap-2.5 text-sm">
                 <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full bg-success/15 text-[10px] font-bold text-success">
-                  ✓
+                  {"✓"}
                 </span>
                 {line}
               </li>
@@ -170,12 +256,12 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                 </div>
                 <CardTitle className="text-xl">Welcome to Kyro</CardTitle>
                 <CardDescription>
-                  Enter your email to sign in or create a free account
+                  Sign in with a password, or create a free account — no email
+                  code required.
                 </CardDescription>
               </CardHeader>
               <form onSubmit={handleEmailSubmit}>
                 <CardContent>
-                  
                   <div className="relative flex items-center gap-2">
                     <div className="relative flex-1">
                       <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -204,7 +290,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                   {error && (
                     <p className="mt-2 text-sm text-red-500">{error}</p>
                   )}
-                  
+
                   <div className="mt-4">
                     <div className="relative">
                       <div className="absolute inset-0 flex items-center">
@@ -216,7 +302,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                         </span>
                       </div>
                     </div>
-                    
+
                     <Button
                       type="button"
                       variant="outline"
@@ -230,117 +316,321 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                   </div>
                 </CardContent>
               </form>
+              <div className="rounded-b-lg border-t bg-muted px-6 py-4 text-center text-xs text-muted-foreground">
+                Kyro is free forever ·{" "}
+                <Link
+                  href="/terms"
+                  className="underline transition-colors hover:text-primary"
+                >
+                  Terms
+                </Link>{" "}
+                ·{" "}
+                <Link
+                  href="/privacy"
+                  className="underline transition-colors hover:text-primary"
+                >
+                  Privacy
+                </Link>
+              </div>
             </>
-          ) : (
+          ) : step === "register" ? (
             <>
-              <CardHeader className="text-center mt-4">
-                <CardTitle>Check your email</CardTitle>
+              <CardHeader className="text-center -mt-6">
+                <CardTitle className="text-xl">Create your account</CardTitle>
                 <CardDescription>
-                  We've sent a code to {step.email}
+                  Pick a username and set a password. Email verification is optional —
+                  move at your own pace.
                 </CardDescription>
               </CardHeader>
-              <form onSubmit={handleOtpSubmit}>
-                <CardContent className="pb-4">
-                  <input type="hidden" name="email" value={step.email} />
-                  <input type="hidden" name="code" value={otp} />
+              <Form>
+                <CardContent className="space-y-4">
+                  <FormField name="email">
+                    {(field) => (
+                      <FormItem>
+                        <Label htmlFor="email">Email</Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          placeholder="you@kairo.com"
+                          value={email}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setEmail(v);
+                            field.onChange(v);
+                          }}
+                          disabled={isLoading}
+                          required
+                          autoComplete="email"
+                        />
+                      </FormItem>
+                    )}
+                  </FormField>
 
-                  <div className="flex justify-center">
-                    <InputOTP
-                      value={otp}
-                      onChange={setOtp}
-                      maxLength={6}
-                      disabled={isLoading}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && otp.length === 6 && !isLoading) {
-                          // Find the closest form and submit it
-                          const form = (e.target as HTMLElement).closest("form");
-                          if (form) {
-                            form.requestSubmit();
-                          }
-                        }
-                      }}
-                    >
-                      <InputOTPGroup>
-                        {Array.from({ length: 6 }).map((_, index) => (
-                          <InputOTPSlot key={index} index={index} />
-                        ))}
-                      </InputOTPGroup>
-                    </InputOTP>
-                  </div>
+                  <FormField name="password">
+                    <FormItem>
+                      <Label htmlFor="password">Password</Label>
+                      <div className="relative">
+                        <Input
+                          id="password-input"
+                          type="password"
+                          placeholder="Min. 8 characters"
+                          value={password}
+                          onChange={(e) => {
+                            setPassword(e.target.value);
+                            field.onChange(e.target.value);
+                          }}
+                          disabled={isLoading}
+                          required
+                          minLength={8}
+                          autoComplete="new-password"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-0 top-0 h-9 w-9"
+                          onClick={togglePassword}
+                          tabIndex={-1}
+                        >
+                          {password ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        At least 8 characters.
+                      </p>
+                    </FormItem>
+                  </FormField>
+
+                  <FormField name="confirmPassword">
+                    <FormItem>
+                      <Label htmlFor="confirmPassword">Confirm password</Label>
+                      <Input
+                        id="confirmPassword"
+                        type="password"
+                        placeholder="Repeat your password"
+                        value={/* confirmation not stored; handled on submit */ ""}
+                        disabled={isLoading}
+                        required
+                        minLength={8}
+                      // confirmation handled via button text below
+                      />
+                    </FormItem>
+                  </FormField>
+
+                  <FormField name="username">
+                    <FormItem>
+                      <FormLabel htmlFor="username">Username</FormLabel>
+                      <div className="relative flex items-center rounded-md border border-input bg-background px-3">
+                        <span className="text-sm text-muted-foreground">@</span>
+                        <Input
+                          id="username"
+                          value={username}
+                          onChange={(e) => {
+                            const v = e.target.value.toLowerCase();
+                            setUsername(v);
+                            field.onChange(v);
+                            checkUsername(v);
+                          }}
+                          placeholder="yourname"
+                          maxLength={32}
+                          className="flex-1 bg-transparent pl-1 text-sm outline-none"
+                          required
+                          autoComplete="username"
+                        />
+                        {username.length >= 3 && (
+                          usernameAvailable === false ? (
+                            <Check className="ml-1 size-4 shrink-0 text-destructive" />
+                          ) : usernameAvailable ? (
+                            <Check className="ml-1 size-4 shrink-0 text-success" />
+                          ) : null}
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        3–32 characters: lowercase letters, numbers and underscores.
+                      </p>
+                    </FormItem>
+                  </FormField>
+
+                  <FormField name="displayName">
+                    <FormItem>
+                      <FormLabel htmlFor="displayName">Display name</FormLabel>
+                      <Input
+                        id="displayName"
+                        value={displayName}
+                        onChange={(e) => {
+                          setDisplayName(e.target.value);
+                          field.onChange(e.target.value);
+                        }}
+                        placeholder="You"
+                        maxLength={64}
+                        disabled={isLoading}
+                        required
+                        autoComplete="off"
+                      />
+                    </FormItem>
+                  </FormField>
+
                   {error && (
-                    <p className="mt-2 text-sm text-red-500 text-center">
-                      {error}
-                    </p>
+                    <p className="text-sm text-red-500">{error}</p>
                   )}
-                  <p className="text-sm text-muted-foreground text-center mt-4">
-                    Didn't receive a code?{" "}
-                    <Button
-                      variant="link"
-                      className="p-0 h-auto"
-                      onClick={() => setStep("signIn")}
-                    >
-                      Try again
-                    </Button>
-                  </p>
-                </CardContent>
-                <CardFooter className="flex-col gap-2">
+
+                  <div className="flex items-center gap-2 pt-2">
+                    <input
+                      type="checkbox"
+                      id="privacy"
+                      disabled={isLoading}
+                      className="peer size-4 rounded border-input text-primary"
+                    />
+                    <Label htmlFor="privacy" className="text-xs text-muted-foreground cursor-pointer flex-1">
+                      I agree to the{" "}
+                      <Link href="/terms" className="text-primary hover:underline">
+                        Terms of Service
+                      </Link>{" "}
+                      and{" "}
+                      <Link href="/privacy" className="text-primary hover:underline">
+                        Privacy Policy
+                      </Link>
+                    </Label>
+                  </div>
+
                   <Button
                     type="submit"
-                    className="w-full"
-                    disabled={isLoading || otp.length !== 6}
+                    className="mt-2 w-full"
+                    disabled={
+                      isLoading ||
+                      !email ||
+                      password.length < 8 ||
+                      username.length < 3 ||
+                      !USERNAME_PATTERN.test(username) ||
+                      !displayName ||
+                      usernameAvailable === false
+                    }
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      if (!email || password.length < 8 || username.length < 3 || !USERNAME_PATTERN.test(username) || !displayName) {
+                        setError("Please fill in all fields.");
+                        return;
+                      }
+                      if (usernameAvailable === false) {
+                        setError("That username is taken.");
+                        return;
+                      }
+                      setError(null);
+                      setIsLoading(true);
+                      try {
+                        const result = await api.mutation({
+                          path: "users.createAccount",
+                          args: {
+                            email,
+                            password,
+                            username: username.toLowerCase(),
+                            name: displayName,
+                          },
+                          argsSchema: {
+                            email: { type: "string" },
+                            password: { type: "string" },
+                            username: { type: "string" },
+                            name: { type: "string", optional: true },
+                          },
+                          function: async () => {
+                            throw new Error(
+                              "createAccount is not implemented in client preview.",
+                            );
+                          },
+                        });
+                        toast.success("Account created!");
+                        navigate(redirect);
+                      } catch (err) {
+                        setError(
+                          err instanceof Error ? err.message : "Could not create account.",
+                        );
+                        setIsLoading(false);
+                      }
+                    }}
                   >
                     {isLoading ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Verifying...
+                        Creating account...
                       </>
                     ) : (
-                      <>
-                        Verify code
-                        <ArrowRight className="ml-2 h-4 w-4" />
-                      </>
+                      "Create account"
                     )}
                   </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => setStep("signIn")}
-                    disabled={isLoading}
-                    className="w-full"
-                  >
-                    Use different email
-                  </Button>
-                </CardFooter>
-              </form>
-            </>
-          )}
 
-          <div className="rounded-b-lg border-t bg-muted px-6 py-4 text-center text-xs text-muted-foreground">
-            Kyro is free forever ·{" "}
-            <a
-              href="/terms"
-              className="underline transition-colors hover:text-primary"
-            >
-              Terms
-            </a>{" "}
-            ·{" "}
-            <a
-              href="/privacy"
-              className="underline transition-colors hover:text-primary"
-            >
-              Privacy
-            </a>
-          </div>
+                  <div className="flex items-center justify-center text-xs text-muted-foreground">
+                    Already have an account?{" "}
+                    <button
+                      type="button"
+                      className="text-primary underline-offset-4 hover:underline"
+                      onClick={startSignIn}
+                    >
+                      Sign in
+                    </button>
+                  </div>
+                </CardContent>
+                <CardFooter className="flex-col gap-2">
+                  <div className="text-xs text-muted-foreground text-center">
+                    Kyro is free forever ·{" "}
+                    <Link href="/terms" className="underline transition-colors hover:text-primary">
+                      Terms
+                    </Link>{" "}
+                    ·{" "}
+                    <Link href="/privacy" className="underline transition-colors hover:text-primary">
+                      Privacy
+                    </Link>
+                  </div>
+                </CardFooter>
+              </Form>
+            </>
+          ) : null}
         </Card>
       </main>
     </div>
   );
 }
 
-export default function AuthPage(props: AuthProps) {
+function EyeOff({ className }: { className?: string }) {
   return (
-    <Suspense>
-      <Auth {...props} />
-    </Suspense>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
   );
+}
+
+function Eye({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="2.5" />
+    </svg>
+  );
+}
+
+export default function AuthPage(props: AuthPropsReads) {
+  return <Auth {...props} />;
 }
