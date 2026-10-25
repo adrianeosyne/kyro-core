@@ -22,6 +22,9 @@ export default {
       domain: process.env.CONVEX_SITE_URL!,
       applicationID: "convex",
     },
+    // Password-based sign-in: register and sign in with email + password.
+    // No email verification is sent; the password is hashed with Scrypt.
+    { type: "password" },
     {
       type: "customJwt",
       issuer: freebuffIssuer,
