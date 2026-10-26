@@ -26,6 +26,8 @@ type SurfaceProps = {
   canManageMessages: boolean;
   disabledReason?: string | null;
   roleColors?: Record<string, string>;
+  /** Owner of the server (channel surfaces only) — their crown badge. */
+  serverOwnerId?: string;
   /** Rendered to the right of the conversation header. */
   headerAction?: ReactNode;
 };
@@ -41,6 +43,7 @@ function ChatSurface({
   canManageMessages,
   disabledReason,
   roleColors,
+  serverOwnerId,
   headerAction,
 }: SurfaceProps) {
   const me = useQuery(api.users.me);
@@ -99,6 +102,7 @@ function ChatSurface({
           })
         }
         roleColors={roleColors}
+        serverOwnerId={serverOwnerId}
       />
 
       <div className="h-5 shrink-0 px-4 text-xs text-muted-foreground">
@@ -181,11 +185,13 @@ export function ChannelChat({
     PERMISSIONS.MANAGE_MESSAGES,
   );
   const roleColors: Record<string, string> = {};
+  let serverOwnerId: string | undefined;
   for (const member of [
     ...(members?.online ?? []),
     ...(members?.offline ?? []),
   ]) {
     if (member.topRoleColor) roleColors[member.user.id] = member.topRoleColor;
+    if (member.isOwner) serverOwnerId = member.user.id;
   }
 
   return (
@@ -198,6 +204,7 @@ export function ChannelChat({
           subtitle={channel.topic}
           icon={<Hash className="size-4" />}
           canManageMessages={canManageMessages}
+          serverOwnerId={serverOwnerId}
           disabledReason={
             channel.readOnly && !canManageMessages
               ? "This channel is read-only."

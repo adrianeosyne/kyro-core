@@ -2,6 +2,7 @@ import { useMutation, useQuery } from "convex/react";
 import {
   AlertTriangle,
   CornerUpLeft,
+  Ellipsis,
   Loader2,
   Pencil,
   Reply,
@@ -9,9 +10,11 @@ import {
   Trash2,
 } from "@/components/icons";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { UserAvatar } from "@/components/app/UserAvatar";
+import { CrownBadge } from "@/components/app/CrownBadge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -31,6 +34,7 @@ export interface MessageAuthor {
   username: string | null;
   avatarUrl: string | null;
   presence: PresenceState;
+  isFounder?: boolean;
 }
 
 export interface MessageDto {
@@ -73,6 +77,7 @@ export function MessageList({
   containerType,
   containerId,
   serverId,
+  serverOwnerId,
   canManageMessages,
   currentUserId,
   onReply,
@@ -82,6 +87,9 @@ export function MessageList({
   containerType: "channel" | "conversation";
   containerId: string;
   serverId?: string;
+  /** Owner of the server this channel belongs to; their crown is only shown
+   *  inside server views, which only members can reach. */
+  serverOwnerId?: string;
   canManageMessages: boolean;
   currentUserId: string;
   onReply: (target: ReplyTarget) => void;
@@ -216,6 +224,7 @@ export function MessageList({
                     containerType={containerType}
                     containerId={containerId}
                     serverId={serverId}
+                    serverOwnerId={serverOwnerId}
                     currentUserId={currentUserId}
                     canManageMessages={canManageMessages}
                     isLast={next === undefined || next.authorId !== message.authorId}
@@ -260,12 +269,14 @@ function MessageRow({
   onReply,
   onReport,
   roleColors,
+  serverOwnerId,
 }: {
   message: MessageDto;
   grouped: boolean;
   containerType: "channel" | "conversation";
   containerId: string;
   serverId?: string;
+  serverOwnerId?: string;
   currentUserId: string;
   canManageMessages: boolean;
   isLast: boolean;
@@ -275,11 +286,22 @@ function MessageRow({
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.content);
+  const [, setParams] = useSearchParams();
   const toggleReaction = useMutation(api.messages.toggleReaction);
   const editMessage = useMutation(api.messages.edit);
   const deleteMessage = useMutation(api.messages.remove);
   const isAuthor = message.authorId === currentUserId;
   const author = message.author;
+
+  /** Opening a profile uses the same ?user=<id> parameter as everywhere else. */
+  const openProfile = () => {
+    if (!author) return;
+    setParams((previous) => {
+      const next = new URLSearchParams(previous);
+      next.set("user", author.id);
+      return next;
+    });
+  };
 
   const send = async (emoji: string) => {
     try {
@@ -293,25 +315,33 @@ function MessageRow({
     <div
       className={cn(
         "message-row group relative rounded-md px-2 py-1.5 hover:bg-surface/60",
-        grouped ? "mt-0" : "mt-3",
+        grouped ? "mt-0 py-0.5" : "mt-2.5",
       )}
     >
       <div className="flex gap-3">
         <div className="w-10 shrink-0">
           {!grouped && author && (
-            <UserAvatar
-              user={author}
-              size="md"
-              showStatus={false}
-              className="mt-0.5"
-            />
+            <button
+              type="button"
+              onClick={openProfile}
+              aria-label={`Open ${author.name}'s profile`}
+              className="mt-0.5 block rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <UserAvatar
+                user={author}
+                size="md"
+                showStatus={false}
+              />
+            </button>
           )}
         </div>
 
         <div className="min-w-0 flex-1">
           {!grouped && (
             <div className="flex flex-wrap items-baseline gap-2">
-              <span
+              <button
+                type="button"
+                onClick={openProfile}
                 className="text-sm font-semibold hover:underline"
                 style={
                   roleColors && author && roleColors[author.id]
@@ -320,7 +350,15 @@ function MessageRow({
                 }
               >
                 {author?.name ?? "Unknown user"}
-              </span>
+              </button>
+              {author?.isFounder && (
+                <CrownBadge variant="founder" label="Kyro founder" />
+              )}
+              {!author?.isFounder &&
+                serverOwnerId &&
+                author?.id === serverOwnerId && (
+                  <CrownBadge label="Server owner" />
+                )}
               <span className="text-[11px] text-muted-foreground">
                 {dayLabel(message.createdAt)} {formatTime(message.createdAt)}
               </span>
@@ -483,57 +521,54 @@ function MessageRow({
           <Reply className="size-4" />
         </button>
 
-        {isAuthor && (
-          <button
-            type="button"
-            aria-label="Edit message"
-            onClick={() => {
-              setDraft(message.content);
-              setEditing(true);
-            }}
-            className="rounded p-1.5 text-muted-foreground hover:bg-surface hover:text-foreground"
-          >
-            <Pencil className="size-4" />
-          </button>
-        )}
-
-        {(isAuthor || canManageMessages) && (
-          <button
-            type="button"
-            aria-label="Delete message"
-            onClick={async () => {
-              try {
-                await deleteMessage({ messageId: message.id as Id<"messages"> });
-              } catch (error) {
-                toast.error(
-                  error instanceof Error ? error.message : "Could not delete.",
-                );
-              }
-            }}
-            className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-          >
-            <Trash2 className="size-4" />
-          </button>
-        )}
-
-        {!isAuthor && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                aria-label="More actions"
-                className="rounded p-1.5 text-muted-foreground hover:bg-surface hover:text-foreground"
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label="More message actions"
+              className="rounded p-1.5 text-muted-foreground hover:bg-surface hover:text-foreground"
+            >
+              <Ellipsis className="size-4" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {isAuthor && (
+              <DropdownMenuItem
+                onClick={() => {
+                  setDraft(message.content);
+                  setEditing(true);
+                }}
               >
-                <span className="text-xs leading-none">⋯</span>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+                <Pencil className="size-4" /> Edit message
+              </DropdownMenuItem>
+            )}
+            {(isAuthor || canManageMessages) && (
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={async () => {
+                  try {
+                    await deleteMessage({
+                      messageId: message.id as Id<"messages">,
+                    });
+                  } catch (error) {
+                    toast.error(
+                      error instanceof Error
+                        ? error.message
+                        : "Could not delete.",
+                    );
+                  }
+                }}
+              >
+                <Trash2 className="size-4" /> Delete message
+              </DropdownMenuItem>
+            )}
+            {!isAuthor && (
               <DropdownMenuItem onClick={() => onReport(message)}>
                 <AlertTriangle className="size-4" /> Report message
               </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );

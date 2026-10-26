@@ -1,11 +1,20 @@
 import { useMutation, useQuery } from "convex/react";
-import { Ban, Check, Clock, MessageCircle, UserPlus, X } from "@/components/icons";
+import {
+  Ban,
+  Check,
+  Clock,
+  MessageCircle,
+  Settings,
+  UserPlus,
+  X,
+} from "@/components/icons";
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { UserAvatar } from "@/components/app/UserAvatar";
+import { CrownBadge } from "@/components/app/CrownBadge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -25,6 +34,7 @@ export function ProfileCard() {
   const navigate = useNavigate();
   const userId = params.get("user");
   const [busy, setBusy] = useState(false);
+  const me = useQuery(api.users.me);
 
   const profile = useQuery(
     api.users.profile,
@@ -78,6 +88,16 @@ export function ProfileCard() {
 
   if (!userId) return null;
 
+  const isSelf = Boolean(me && me.id === userId);
+
+  /** Your own profile offers settings instead of friend/block controls. */
+  const openSettings = () => {
+    const next = new URLSearchParams(params);
+    next.delete("user");
+    next.set("settings", "1");
+    setParams(next, { replace: true });
+  };
+
   const user = profile?.user;
   const incoming = lists?.incoming.find((row) => row.user?.id === userId);
   const outgoing = lists?.outgoing.find((row) => row.user?.id === userId);
@@ -96,7 +116,12 @@ export function ProfileCard() {
               <>
                 <UserAvatar user={user} size="lg" />
                 <div className="min-w-0">
-                  <p className="truncate font-semibold">{user.name}</p>
+                  <p className="flex items-center gap-1.5 truncate font-semibold">
+                    {user.name}
+                    {user.isFounder && (
+                      <CrownBadge variant="founder" label="Kyro founder" />
+                    )}
+                  </p>
                   <p className="truncate text-sm text-muted-foreground">
                     {user.username ? `@${user.username}` : "no username yet"}
                   </p>
@@ -123,6 +148,15 @@ export function ProfileCard() {
 
         {user && (
           <div className="space-y-3">
+            {user.bannerUrl && (
+              <div className="h-24 overflow-hidden rounded-lg border border-border/70 bg-gradient-to-br from-brand to-cyan">
+                <img
+                  src={user.bannerUrl}
+                  alt=""
+                  className="size-full object-cover"
+                />
+              </div>
+            )}
             {user.bio && (
               <p className="rounded-md border border-border/70 bg-surface p-3 text-sm">
                 {user.bio}
@@ -159,7 +193,13 @@ export function ProfileCard() {
         )}
 
         <div className="flex flex-wrap justify-end gap-2 border-t border-border/60 pt-3">
-          {incoming && (
+          {isSelf && (
+            <Button variant="outline" onClick={openSettings}>
+              <Settings className="mr-1.5 size-4" /> Edit profile
+            </Button>
+          )}
+
+          {!isSelf && incoming && (
             <>
               <Button
                 variant="ghost"
@@ -192,7 +232,7 @@ export function ProfileCard() {
             </>
           )}
 
-          {outgoing && (
+          {!isSelf && outgoing && (
             <Button
               variant="outline"
               disabled={busy}
@@ -209,7 +249,7 @@ export function ProfileCard() {
             </Button>
           )}
 
-          {!incoming && !outgoing && !isFriend && !isBlocked && (
+          {!isSelf && !incoming && !outgoing && !isFriend && !isBlocked && (
             <Button
               variant="outline"
               disabled={busy}
@@ -224,7 +264,7 @@ export function ProfileCard() {
             </Button>
           )}
 
-          {isFriend && (
+          {!isSelf && isFriend && (
             <Button
               variant="ghost"
               disabled={busy}
@@ -239,7 +279,7 @@ export function ProfileCard() {
             </Button>
           )}
 
-          {isBlocked ? (
+          {!isSelf && (isBlocked ? (
             <Button
               variant="outline"
               disabled={busy}
@@ -262,14 +302,16 @@ export function ProfileCard() {
             >
               <Ban className="mr-1.5 size-4" /> Block
             </Button>
-          )}
+          ))}
 
-          <Button
-            disabled={busy || (social ? !social.canMessage : false)}
-            onClick={() => void openMessage()}
-          >
-            <MessageCircle className="mr-1.5 size-4" /> Message
-          </Button>
+          {!isSelf && (
+            <Button
+              disabled={busy || (social ? !social.canMessage : false)}
+              onClick={() => void openMessage()}
+            >
+              <MessageCircle className="mr-1.5 size-4" /> Message
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>

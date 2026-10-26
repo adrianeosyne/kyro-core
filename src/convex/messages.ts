@@ -512,6 +512,34 @@ export const markContainerRead = mutation({
   },
 });
 
+/** Marks every channel in a server as read (right-click a server → Mark as read). */
+export const markServerRead = mutation({
+  args: { serverId: v.id("servers") },
+  handler: async (ctx, { serverId }) => {
+    const { id: userId } = await requireUser(ctx);
+    await requireServerAccess(ctx, serverId, userId);
+    const channels = await ctx.db
+      .query("channels")
+      .withIndex("by_server", (q) => q.eq("serverId", serverId))
+      .collect();
+    for (const channel of channels) {
+      await markRead(ctx, userId, channel._id);
+    }
+    const channelIds = new Set(channels.map((channel) => channel._id as string));
+    const notes = await ctx.db
+      .query("notifications")
+      .withIndex("by_user_unread", (q) =>
+        q.eq("userId", userId).eq("read", false),
+      )
+      .collect();
+    for (const note of notes) {
+      if (note.containerKey && channelIds.has(note.containerKey)) {
+        await ctx.db.patch(note._id, { read: true });
+      }
+    }
+  },
+});
+
 /** Records that the user is typing; expires after a few seconds. */
 export const setTyping = mutation({
   args: {

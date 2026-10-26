@@ -1,8 +1,18 @@
-import { useQuery } from "convex/react";
-import { Compass, Loader2, Plus } from "@/components/icons";
+import { useMutation, useQuery } from "convex/react";
+import {
+  CheckCheck,
+  Compass,
+  Loader2,
+  Plus,
+  UserPlus,
+  Volume2,
+  VolumeX,
+} from "@/components/icons";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
+import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { KyroMark } from "@/components/KyroMark";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +22,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Tooltip,
@@ -19,7 +36,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { CreateCommunityDialog } from "@/components/app/dialogs";
+import { CreateCommunityDialog, InviteDialog } from "@/components/app/dialogs";
 
 function RailButton({
   label,
@@ -27,6 +44,7 @@ function RailButton({
   unread,
   mentions,
   onClick,
+  onContextMenu,
   to,
   children,
   className,
@@ -36,6 +54,7 @@ function RailButton({
   unread?: boolean;
   mentions?: number;
   onClick?: () => void;
+  onContextMenu?: (event: React.MouseEvent) => void;
   to?: string;
   children: React.ReactNode;
   className?: string;
@@ -66,11 +85,22 @@ function RailButton({
     <Tooltip>
       <TooltipTrigger asChild>
         {to ? (
-          <Link to={to} aria-label={label} className="block">
+          <Link
+            to={to}
+            aria-label={label}
+            className="block"
+            onContextMenu={onContextMenu}
+          >
             {body}
           </Link>
         ) : (
-          <button type="button" aria-label={label} onClick={onClick} className="block">
+          <button
+            type="button"
+            aria-label={label}
+            onClick={onClick}
+            onContextMenu={onContextMenu}
+            className="block"
+          >
             {body}
           </button>
         )}
@@ -85,6 +115,25 @@ export function ServerRail({ activeServerId }: { activeServerId?: string }) {
   const navigate = useNavigate();
   const [createOpen, setCreateOpen] = useState(false);
   const [discoverOpen, setDiscoverOpen] = useState(false);
+  const [menuServerId, setMenuServerId] = useState<string | null>(null);
+  const [inviteServerId, setInviteServerId] = useState<string | null>(null);
+  const setMuted = useMutation(api.servers.setMuted);
+  const markServerRead = useMutation(api.messages.markServerRead);
+
+  const menuServer = (servers ?? []).find(
+    (server) => server.id === menuServerId,
+  );
+
+  const run = async (action: Promise<unknown>, success?: string) => {
+    try {
+      await action;
+      if (success) toast.success(success);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "That didn't work — try again.",
+      );
+    }
+  };
 
   return (
     <>
@@ -117,6 +166,10 @@ export function ServerRail({ activeServerId }: { activeServerId?: string }) {
               unread={server.unread && !server.muted}
               mentions={server.muted ? 0 : server.mentions}
               to={`/dashboard/s/${server.id}`}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                setMenuServerId(server.id);
+              }}
             >
               {server.iconUrl ? (
                 <img
@@ -143,6 +196,86 @@ export function ServerRail({ activeServerId }: { activeServerId?: string }) {
 
       <CreateCommunityDialog open={createOpen} onOpenChange={setCreateOpen} />
       <DiscoverDialog open={discoverOpen} onOpenChange={setDiscoverOpen} onJoin={(id) => navigate(`/dashboard/s/${id}`)} />
+
+      {/* Right-click menu for a server: invite, mark read, mute. */}
+      <DropdownMenu
+        open={menuServerId !== null}
+        onOpenChange={(open) => {
+          if (!open) setMenuServerId(null);
+        }}
+      >
+        <DropdownMenuTrigger asChild>
+          <span className="hidden" aria-hidden />
+        </DropdownMenuTrigger>
+        {menuServer && (
+          <DropdownMenuContent
+            align="start"
+            side="right"
+            className="w-56"
+            onCloseAutoFocus={(event) => event.preventDefault()}
+          >
+            <DropdownMenuItem
+              onClick={() => {
+                setInviteServerId(menuServer.id);
+                setMenuServerId(null);
+              }}
+            >
+              <UserPlus className="size-4" /> Invite people
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() =>
+                void run(
+                  markServerRead({
+                    serverId: menuServer.id as Id<"servers">,
+                  }),
+                  "Marked as read.",
+                )
+              }
+            >
+              <CheckCheck className="size-4" /> Mark all as read
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() =>
+                void run(
+                  setMuted({
+                    serverId: menuServer.id as Id<"servers">,
+                    muted: !menuServer.muted,
+                  }),
+                  menuServer.muted
+                    ? "Server unmuted."
+                    : "Server muted.",
+                )
+              }
+            >
+              {menuServer.muted ? (
+                <Volume2 className="size-4" />
+              ) : (
+                <VolumeX className="size-4" />
+              )}
+              {menuServer.muted ? "Unmute server" : "Mute server"}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => {
+                navigate(`/dashboard/s/${menuServer.id}`);
+                setMenuServerId(null);
+              }}
+            >
+              Open server
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        )}
+      </DropdownMenu>
+
+      {inviteServerId && (
+        <InviteDialog
+          serverId={inviteServerId}
+          open
+          onOpenChange={(open) => {
+            if (!open) setInviteServerId(null);
+          }}
+        />
+      )}
     </>
   );
 }

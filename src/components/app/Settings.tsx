@@ -60,9 +60,13 @@ const TABS: { id: TabId; label: string; icon: typeof UserIcon }[] = [
 const ACCENTS: { id: AccentChoice; label: string; color: string }[] = [
   { id: "default", label: "Blurple", color: "#5865F2" },
   { id: "cyan", label: "Cyan", color: "#0E9FD8" },
+  { id: "blue", label: "Blue", color: "#3B82F6" },
   { id: "violet", label: "Violet", color: "#8B5CF6" },
+  { id: "fuchsia", label: "Fuchsia", color: "#D946EF" },
   { id: "emerald", label: "Emerald", color: "#10B981" },
+  { id: "teal", label: "Teal", color: "#14B8A6" },
   { id: "rose", label: "Rose", color: "#F43F5E" },
+  { id: "orange", label: "Orange", color: "#F97316" },
   { id: "amber", label: "Amber", color: "#F59E0B" },
 ];
 
@@ -228,6 +232,7 @@ function ProfileTab() {
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
 
   if (!me) return <p className="text-sm text-muted-foreground">Loading…</p>;
 
@@ -301,6 +306,66 @@ function ProfileTab() {
             )}
           </div>
         </div>
+      </Section>
+
+      <Section title="Banner">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="h-20 w-56 overflow-hidden rounded-lg border border-border/70 bg-gradient-to-br from-brand to-cyan">
+            {me.bannerUrl && (
+              <img
+                src={me.bannerUrl}
+                alt="Your profile banner"
+                className="size-full object-cover"
+              />
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-border/70 bg-surface px-3 py-2 text-sm hover:bg-surface/70">
+              {uploadingBanner ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Palette className="size-4" />
+              )}
+              Upload banner
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={async (event) => {
+                  const file = event.target.files?.[0];
+                  if (!file) return;
+                  if (file.size > MAX_UPLOAD_BYTES) {
+                    toast.error("Images must be under 10 MB.");
+                    return;
+                  }
+                  setUploadingBanner(true);
+                  try {
+                    const attachment = await upload(file);
+                    await update({ bannerStorageId: attachment.storageId });
+                    toast.success("Banner updated");
+                  } catch (error) {
+                    toast.error(
+                      error instanceof Error ? error.message : "Upload failed.",
+                    );
+                  } finally {
+                    setUploadingBanner(false);
+                  }
+                }}
+              />
+            </label>
+            {me.bannerUrl && (
+              <Button
+                variant="outline"
+                onClick={() => void update({ bannerStorageId: null })}
+              >
+                Remove
+              </Button>
+            )}
+          </div>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Images and GIFs both work — animated banners play on your profile.
+        </p>
       </Section>
 
       <Section title="Profile">

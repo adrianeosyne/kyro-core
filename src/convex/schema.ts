@@ -46,6 +46,8 @@ const schema = defineSchema(
       bio: v.optional(v.string()),
       /** Storage id of an uploaded avatar (resolved to a signed URL on read). */
       avatarStorageId: v.optional(v.id("_storage")),
+      /** Storage id of an uploaded profile banner (images and GIFs). */
+      bannerStorageId: v.optional(v.id("_storage")),
       /** Chosen status. `invisible` renders as offline to everybody else. */
       status: v.optional(presenceValidator),
       customStatus: v.optional(v.string()),

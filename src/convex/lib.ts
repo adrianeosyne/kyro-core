@@ -69,22 +69,31 @@ export interface PublicUser {
   username: string | null;
   name: string;
   avatarUrl: string | null;
+  bannerUrl: string | null;
   presence: PresenceState;
   customStatus: string | null;
   bio: string | null;
   accent: string | null;
   lastSeen: number | null;
   isAnonymous: boolean;
+  /** Kyro's founder: their crown badge is shown to every viewer, everywhere. */
+  isFounder: boolean;
 }
+
+/** The one account that carries Kyro's platform-wide founder crown. */
+export const FOUNDER_USERNAME = "adrianeosyne";
 
 export async function hydrateUser(
   ctx: Ctx,
   user: Doc<"users">,
   viewerId: Id<"users">,
 ): Promise<PublicUser> {
-  const [avatarUrl] = await Promise.all([
+  const [avatarUrl, bannerUrl] = await Promise.all([
     user.avatarStorageId
       ? ctx.storage.getUrl(user.avatarStorageId)
+      : Promise.resolve(null),
+    user.bannerStorageId
+      ? ctx.storage.getUrl(user.bannerStorageId)
       : Promise.resolve(null),
   ]);
   return {
@@ -92,12 +101,15 @@ export async function hydrateUser(
     username: user.username ?? null,
     name: user.name ?? user.username ?? "Kyro user",
     avatarUrl,
+    bannerUrl,
     presence: visiblePresence(user, user._id === viewerId),
     customStatus: user.customStatus ?? null,
     bio: user.bio ?? null,
     accent: user.accent ?? null,
     lastSeen: user.lastSeen ?? null,
     isAnonymous: user.isAnonymous === true,
+    isFounder:
+      (user.username ?? "").toLowerCase() === FOUNDER_USERNAME,
   };
 }
 

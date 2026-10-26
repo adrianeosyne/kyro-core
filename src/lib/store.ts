@@ -6,7 +6,17 @@ import { create } from "zustand";
  */
 
 export type ThemeChoice = "dark" | "light" | "system";
-export type AccentChoice = "default" | "cyan" | "violet" | "emerald" | "rose" | "amber";
+export type AccentChoice =
+  | "default"
+  | "cyan"
+  | "blue"
+  | "violet"
+  | "emerald"
+  | "teal"
+  | "rose"
+  | "orange"
+  | "fuchsia"
+  | "amber";
 export type Density = "comfortable" | "compact";
 export type StatusChoice = "online" | "idle" | "dnd" | "invisible" | "offline";
 

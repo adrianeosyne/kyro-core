@@ -147,6 +147,10 @@ html[data-accent="cyan"] {
   --primary: #0e9fd8;
   --brand: #0e9fd8;
 }
+html[data-accent="blue"] {
+  --primary: #3b82f6;
+  --brand: #3b82f6;
+}
 html[data-accent="violet"] {
   --primary: #8b5cf6;
   --brand: #8b5cf6;
@@ -155,9 +159,21 @@ html[data-accent="emerald"] {
   --primary: #10b981;
   --brand: #10b981;
 }
+html[data-accent="teal"] {
+  --primary: #14b8a6;
+  --brand: #14b8a6;
+}
 html[data-accent="rose"] {
   --primary: #f43f5e;
   --brand: #f43f5e;
+}
+html[data-accent="orange"] {
+  --primary: #f97316;
+  --brand: #f97316;
+}
+html[data-accent="fuchsia"] {
+  --primary: #d946ef;
+  --brand: #d946ef;
 }
 html[data-accent="amber"] {
   --primary: #f59e0b;

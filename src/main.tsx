@@ -20,6 +20,7 @@ const TermsPage = lazy(() =>
 const PrivacyPage = lazy(() =>
   import("./pages/Legal.tsx").then((m) => ({ default: m.PrivacyPage })),
 );
+const InviteRoute = lazy(() => import("./pages/Invite.tsx"));
 
 // Simple loading fallback for route transitions
 function RouteLoading() {
@@ -140,6 +141,7 @@ createRoot(document.getElementById("root")!).render(
               />
               <Route path="/terms" element={<TermsPage />} />
               <Route path="/privacy" element={<PrivacyPage />} />
+              <Route path="/invite/:code" element={<InviteRoute />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>

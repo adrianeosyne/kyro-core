@@ -1,7 +1,8 @@
 import { useMutation, useQuery } from "convex/react";
-import { Circle, Crown, LogOut, Settings, Sparkles } from "@/components/icons";
+import { Circle, LogOut, Settings } from "@/components/icons";
 import { api } from "@/convex/_generated/api";
-import { UserAvatar, UserBanner } from "@/components/app/UserAvatar";
+import { UserAvatar } from "@/components/app/UserAvatar";
+import { CrownBadge } from "@/components/app/CrownBadge";
 import { useAuth } from "@/hooks/use-auth";
 import {
   DropdownMenu,
@@ -11,9 +12,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import type { StatusChoice } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { toast } from "sonner";
 
 const STATUS_OPTIONS: { value: StatusChoice; label: string; dot: string }[] = [
   { value: "online", label: "Online", dot: "bg-success" },
@@ -29,42 +32,53 @@ const STATUS_OPTIONS: { value: StatusChoice; label: string; dot: string }[] = [
 export function UserBar({ onOpenSettings }: { onOpenSettings?: () => void }) {
   const me = useQuery(api.users.me);
   const servers = useQuery(api.servers.listMine);
-  const [isOwner, setIsOwner] = useState(false);
+  const updateProfile = useMutation(api.users.updateProfile);
   const setPresence = useMutation(api.users.setPresence);
   const { signOut } = useAuth();
+  const [statusDraft, setStatusDraft] = useState("");
 
   if (!me) return null;
 
-  // Resolve "is server owner" from any membership row we can see.
-  const checkOwnership = (): boolean => {
-    const mine = servers as { memberships: { role?: string }[] } | undefined;
-    return (
-      mine?.memberships.some((m) => m.role === "owner") ?? false
-    );
+  const ownsServer = (servers ?? []).some((server) => server.isOwner);
+
+  const saveStatus = async () => {
+    try {
+      await updateProfile({ customStatus: statusDraft });
+      toast.success(
+        statusDraft.trim() ? "Custom status set" : "Custom status cleared",
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not set your status.",
+      );
+    }
   };
 
   return (
     <div className="border-t border-border/60 bg-sidebar p-2">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button
-            className="flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left hover:bg-sidebar-accent/70"
-            onMouseEnter={() => setIsOwner(checkOwnership())}
-          >
+          <button className="flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left hover:bg-sidebar-accent/70">
             <UserAvatar user={me} size="sm" />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-medium leading-tight">
-                {me.name}
+              <span className="flex items-center gap-1.5">
+                <span className="truncate text-sm font-medium leading-tight">
+                  {me.name}
+                </span>
+                {me.isFounder ? (
+                  <CrownBadge variant="founder" label="Kyro founder" />
+                ) : ownsServer ? (
+                  <CrownBadge label="Server owner" />
+                ) : null}
               </span>
               <span className="block truncate text-xs leading-tight text-muted-foreground">
-                @{me.username ?? "new"}
+                {me.customStatus || `@${me.username ?? "new"}`}
               </span>
             </span>
-            {isOwner && <Crown className="size-4 shrink-0 text-amber-500" />}
             <Settings className="size-4 shrink-0 text-muted-foreground" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" side="top" className="w-60">
+        <DropdownMenuContent align="start" side="top" className="w-64">
           <DropdownMenuLabel className="text-xs text-muted-foreground">
             Set status
           </DropdownMenuLabel>
@@ -84,6 +98,31 @@ export function UserBar({ onOpenSettings }: { onOpenSettings?: () => void }) {
               )}
             </DropdownMenuItem>
           ))}
+          <DropdownMenuSeparator />
+          <div className="px-2 py-1.5">
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                void saveStatus();
+              }}
+              className="flex items-center gap-1.5"
+            >
+              <Input
+                value={statusDraft}
+                onChange={(event) => setStatusDraft(event.target.value)}
+                placeholder="Set a custom status"
+                maxLength={100}
+                className="h-7 text-xs"
+                aria-label="Custom status"
+              />
+              <button
+                type="submit"
+                className="shrink-0 rounded-md border border-border/70 px-2 py-1 text-xs text-muted-foreground hover:bg-surface hover:text-foreground"
+              >
+                Save
+              </button>
+            </form>
+          </div>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={onOpenSettings}>
             <Settings className="size-4" /> User settings

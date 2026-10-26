@@ -21,25 +21,14 @@ import {
   Eye,
   EyeOff,
   Loader2,
+  Lock,
   Mail,
   UserX,
 } from "@/components/icons";
 import { Link } from "react-router";
-import {
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSlot,
-} from "@/components/ui/input-otp";
+import { useAction } from "convex/react";
 
 const USERNAME_PATTERN = /^[a-z0-9_]{3,32}$/;
-
-function AuthPropsReads({
-  redirectAfterAuth,
-}: {
-  redirectAfterAuth?: string;
-}) {
-  return { redirectAfterAuth };
-}
 
 function resolveRedirectAfterAuth(
   returnTo: string | null,
@@ -51,7 +40,7 @@ function resolveRedirectAfterAuth(
   return fallback;
 }
 
-type Step = "signIn" | "register" | "otp";
+type Step = "signIn" | "register";
 
 function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
   const { isLoading: authLoading, isAuthenticated, signIn } = useAuth();
@@ -62,13 +51,14 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
     redirectAfterAuth,
   );
 
+  // `users/createAccount.ts` nests one level deeper in the generated API.
+  const createAccountAction = useAction(api.users.createAccount.createAccount);
   const [step, setStep] = React.useState<Step>("signIn");
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [confirmPassword, setConfirmPassword] = React.useState("");
   const [displayName, setDisplayName] = React.useState("");
   const [username, setUsername] = React.useState("");
-  const [otp, setOtp] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [usernameAvailable, setUsernameAvailable] = React.useState<
@@ -91,7 +81,7 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
     setUsernameAvailable(true);
   };
 
-  const handleEmailSubmit = async (
+  const handleSignInSubmit = async (
     event: React.FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault();
@@ -99,15 +89,28 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
     setError(null);
     try {
       const formData = new FormData(event.currentTarget);
-      await signIn("email-otp", formData);
-      setStep("otp");
-      setIsLoading(false);
+      const signInEmail = String(formData.get("email") ?? "")
+        .trim()
+        .toLowerCase();
+      const signInPassword = String(formData.get("password") ?? "");
+      if (!signInPassword) {
+        setError("Enter your password.");
+        setIsLoading(false);
+        return;
+      }
+      await signIn("password", {
+        flow: "signIn",
+        email: signInEmail,
+        password: signInPassword,
+      });
+      toast.success("Welcome back!");
+      navigate(redirect);
     } catch (err) {
-      console.error("Email sign-in error:", err);
+      console.error("Password sign-in error:", err);
       setError(
         err instanceof Error
           ? err.message
-          : "Failed to send verification code. Please try again.",
+          : "That email and password combination didn't work.",
       );
       setIsLoading(false);
     }
@@ -135,18 +138,18 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
         setIsLoading(false);
         return;
       }
-      await api.users.createAccount({
+      await createAccountAction({
         email: email.trim().toLowerCase(),
         password,
         username: username.trim().toLowerCase(),
         name: displayName.trim() || username.trim(),
       });
       await signIn("password", {
+        flow: "signIn",
         email: email.trim().toLowerCase(),
         password,
-        createAccount: false,
       });
-      toast.success("Account created!");
+      toast.success("Account created — welcome to Kyro!");
       navigate(redirect);
     } catch (err) {
       setError(
@@ -154,24 +157,6 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
       );
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleOtpSubmit = async (
-    event: React.FormEvent<HTMLFormElement>,
-  ) => {
-    event.preventDefault();
-    setIsLoading(true);
-    setError(null);
-    try {
-      const formData = new FormData(event.currentTarget);
-      await signIn("email-otp", formData);
-      navigate(redirect);
-    } catch (err) {
-      console.error("OTP verification error:", err);
-      setError("The verification code you entered is incorrect.");
-      setIsLoading(false);
-      setOtp("");
     }
   };
 
@@ -206,13 +191,13 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
         <div className="kyro-grid pointer-events-none absolute inset-0 opacity-70" />
         <div className="kyro-orb pointer-events-none absolute -left-24 top-1/3 h-80 w-80" />
 
-        <a
+        <Link
           to="/"
           className="relative flex items-center gap-2.5 text-lg font-bold tracking-tight"
         >
           <KyroMark className="size-9" />
           Kyro
-        </a>
+        </Link>
 
         <div className="relative max-w-md">
           <h1 className="text-4xl font-bold leading-[1.1] tracking-tight">
@@ -264,60 +249,102 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
                   code required.
                 </CardDescription>
               </CardHeader>
-              <form onSubmit={handleEmailSubmit}>
-                <CardContent>
-                  <div className="relative flex items-center gap-2">
-                    <div className="relative flex-1">
-                      <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <form onSubmit={handleSignInSubmit}>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="signin-email">Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
+                        id="signin-email"
                         name="email"
                         placeholder="name@example.com"
                         type="email"
                         className="pl-9"
                         disabled={isLoading}
                         required
+                        autoComplete="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
                       />
                     </div>
-                    <Button
-                      type="submit"
-                      variant="outline"
-                      size="icon"
-                      disabled={isLoading}
-                    >
-                      {isLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <ArrowRight className="h-4 w-4" />
-                      )}
-                    </Button>
                   </div>
-                  {error && (
-                    <p className="mt-2 text-sm text-red-500">{error}</p>
-                  )}
 
-                  <div className="mt-4">
+                  <div>
+                    <Label htmlFor="signin-password">Password</Label>
                     <div className="relative">
-                      <div className="absolute inset-0 flex items-center">
-                        <span className="w-full border-t" />
-                      </div>
-                      <div className="relative flex justify-center text-xs uppercase">
-                        <span className="bg-background px-2 text-muted-foreground">
-                          Or
-                        </span>
-                      </div>
+                      <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="signin-password"
+                        name="password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Your password"
+                        className="pl-9 pr-9"
+                        disabled={isLoading}
+                        required
+                        autoComplete="current-password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        aria-label={
+                          showPassword ? "Hide password" : "Show password"
+                        }
+                      >
+                        {showPassword ? (
+                          <EyeOff className="size-4" />
+                        ) : (
+                          <Eye className="size-4" />
+                        )}
+                      </button>
                     </div>
-
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full mt-4"
-                      onClick={handleGuestLogin}
-                      disabled={isLoading}
-                    >
-                      <UserX className="mr-2 h-4 w-4" />
-                      Continue as Guest
-                    </Button>
                   </div>
+
+                  {error && <p className="text-sm text-red-500">{error}</p>}
+
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ArrowRight className="h-4 w-4" />
+                    )}
+                    Sign in
+                  </Button>
+
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-background px-2 text-muted-foreground">
+                        Or
+                      </span>
+                    </div>
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={handleGuestLogin}
+                    disabled={isLoading}
+                  >
+                    <UserX className="mr-2 h-4 w-4" />
+                    Continue as Guest
+                  </Button>
+
+                  <p className="text-center text-sm text-muted-foreground">
+                    New to Kyro?{" "}
+                    <button
+                      type="button"
+                      onClick={startRegister}
+                      disabled={isLoading}
+                      className="font-medium text-primary hover:underline"
+                    >
+                      Create an account
+                    </button>
+                  </p>
                 </CardContent>
               </form>
               <div className="rounded-b-lg border-t bg-muted px-6 py-4 text-center text-xs text-muted-foreground">
@@ -342,8 +369,7 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
               <CardHeader className="text-center -mt-6">
                 <CardTitle className="text-xl">Create your account</CardTitle>
                 <CardDescription>
-                  Pick a username and set a password. Email verification is
-                  optional — move at your own pace.
+                  Pick a username and set a password — no email code needed.
                 </CardDescription>
               </CardHeader>
               <form onSubmit={handleRegisterSubmit} className="space-y-4">
@@ -432,79 +458,24 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
                     />
                   </div>
                 </CardContent>
-                <div className="flex justify-end">
+                <div className="flex items-center justify-between gap-2">
                   <Button
                     type="button"
-                    variant="outline"
-                    onClick={startRegister}
+                    variant="ghost"
+                    onClick={startSignIn}
                     disabled={isLoading}
                   >
+                    Back to sign-in
+                  </Button>
+                  <Button type="submit" disabled={isLoading}>
                     {isLoading ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <Check className="h-4 w-4" />
                     )}
-                    Next
+                    Create account
                   </Button>
                 </div>
-              </form>
-            </>
-          ) : step === "otp" ? (
-            <>
-              <CardHeader className="text-center">
-                <CardTitle className="text-xl">Check your email</CardTitle>
-                <CardDescription>
-                  We sent a one-time code to <span className="font-medium">{email}</span>.
-                  Enter it below.
-                </CardDescription>
-              </CardHeader>
-              <form onSubmit={handleOtpSubmit} className="space-y-4">
-                <CardContent>
-                  <div className="flex gap-2">
-                    <InputOTP
-                      maxLength={6}
-                      value={otp}
-                      onChange={(value) => setOtp(value)}
-                      disabled={isLoading}
-                      required
-                    >
-                      <InputOTPGroup>
-                        <InputOTPSlot index={0} />
-                        <InputOTPSlot index={1} />
-                        <InputOTPSlot index={2} />
-                        <InputOTPSlot index={3} />
-                        <InputOTPSlot index={4} />
-                        <InputOTPSlot index={5} />
-                      </InputOTPGroup>
-                    </InputOTP>
-                    <Button
-                      type="submit"
-                      disabled={isLoading || otp.length < 6}
-                      className="flex-1"
-                    >
-                      {isLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Check className="h-4 w-4" />
-                      )}
-                      Verify
-                    </Button>
-                  </div>
-                  {error && (
-                    <p className="text-sm text-red-500">{error}</p>
-                  )}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => {
-                      setStep("signIn");
-                      setError(null);
-                    }}
-                    disabled={isLoading}
-                  >
-                    Back to sign-in
-                  </Button>
-                </CardContent>
               </form>
             </>
           ) : null}
@@ -514,6 +485,10 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
   );
 }
 
-export default function AuthPage(props: AuthPropsReads) {
-  return <Auth {...props} />;
+export default function AuthPage({
+  redirectAfterAuth,
+}: {
+  redirectAfterAuth?: string;
+}) {
+  return <Auth redirectAfterAuth={redirectAfterAuth} />;
 }

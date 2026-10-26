@@ -331,6 +331,30 @@ export const Crown = (props: IconProps) => (
   </Icon>
 );
 
+export const Ellipsis = (props: IconProps) => (
+  <Icon {...props}>
+    <circle cx="5.6" cy="12" r="1.45" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="12" r="1.45" fill="currentColor" stroke="none" />
+    <circle cx="18.4" cy="12" r="1.45" fill="currentColor" stroke="none" />
+  </Icon>
+);
+
+export const Volume2 = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M4 9.4h3.3L12 5.4v13.2l-4.7-4H4Z" />
+    <path d="M15.4 9.3a4 4 0 0 1 0 5.4" />
+    <path d="M18 6.9a7.3 7.3 0 0 1 0 10.2" />
+  </Icon>
+);
+
+export const VolumeX = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M4 9.4h3.3L12 5.4v13.2l-4.7-4H4Z" />
+    <path d="m16 9.5 4.5 5" />
+    <path d="m20.5 9.5-4.5 5" />
+  </Icon>
+);
+
 export const ShieldAlert = (props: IconProps) => (
   <Icon {...props}>
     <path d="M12 3.2 5 5.6v5.7c0 4.3 2.9 7.5 7 9.5 4.1-2 7-5.2 7-9.5V5.6Z" />

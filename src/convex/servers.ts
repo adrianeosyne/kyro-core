@@ -113,6 +113,7 @@ export const listMine = query({
           iconUrl,
           memberCount,
           muted: membership.muted === true,
+          isOwner: server.ownerId === id,
           ...badges,
         };
       }),

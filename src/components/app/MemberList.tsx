@@ -3,8 +3,8 @@ import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { Crown } from "@/components/icons";
 import { UserAvatar } from "@/components/app/UserAvatar";
+import { CrownBadge } from "@/components/app/CrownBadge";
 import { Input } from "@/components/ui/input";
 import type { PresenceState } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,7 @@ type Member = {
     avatarUrl: string | null;
     presence: PresenceState;
     customStatus: string | null;
+    isFounder?: boolean;
   };
   nickname: string | null;
   isOwner: boolean;
@@ -79,15 +80,10 @@ export function MemberList({ serverId }: { serverId: string }) {
           >
             {member.nickname ?? member.user.name}
           </span>
-          {member.isOwner && (
-            <span
-              title="Server owner"
-              className="inline-flex shrink-0 items-center text-warning"
-            >
-              <Crown className="size-3.5" />
-              <span className="sr-only">Server owner</span>
-            </span>
+          {member.user.isFounder && (
+            <CrownBadge variant="founder" label="Kyro founder" />
           )}
+          {member.isOwner && <CrownBadge label="Server owner" />}
         </span>
         {member.user.customStatus && (
           <span className="block truncate text-xs text-muted-foreground">

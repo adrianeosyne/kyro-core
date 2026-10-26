@@ -152,7 +152,7 @@ function ServerSection({ serverId }: { serverId: string }) {
               <DropdownMenuItem
                 onClick={() => navigate(`/dashboard/s/${serverId}/settings/overview`)}
               >
-                <Settings className="size-4" /> Community settings
+                <Settings className="size-4" /> Server Settings
               </DropdownMenuItem>
             )}
             <DropdownMenuItem

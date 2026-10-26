@@ -94,6 +94,7 @@ export const updateProfile = mutation({
     customStatus: v.optional(v.string()),
     accent: v.optional(v.string()),
     avatarStorageId: v.optional(v.union(v.id("_storage"), v.null())),
+    bannerStorageId: v.optional(v.union(v.id("_storage"), v.null())),
     status: v.optional(v.union(
       v.literal("online"),
       v.literal("idle"),
@@ -130,6 +131,14 @@ export const updateProfile = mutation({
         patch.avatarStorageId = undefined;
       } else {
         patch.avatarStorageId = args.avatarStorageId;
+      }
+    }
+    if (args.bannerStorageId !== undefined) {
+      if (args.bannerStorageId === null) {
+        if (user.bannerStorageId) await ctx.storage.delete(user.bannerStorageId);
+        patch.bannerStorageId = undefined;
+      } else {
+        patch.bannerStorageId = args.bannerStorageId;
       }
     }
     await ctx.db.patch(id, patch);
