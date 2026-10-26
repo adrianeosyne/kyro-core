@@ -1,16 +1,7 @@
 import { v } from "convex/values";
-import { mutation, internalMutation } from "../_generated/server";
+import { mutation } from "../_generated/server";
 import { convexAuth } from "@convex-dev/auth/server";
-import type { ActionCtx } from "../_generated/server";
 import { getAuthUserIdOrThrow } from "./lib";
-
-const storeAuthAccount = internalMutation({
-  args: { args: v.any() },
-  handler: async (ctx, args) => {
-    const result = await (ctx.runMutation("auth:store") as any)(args as any) as any;
-    return (result as any) as { _id: string };
-  },
-});
 
 /** Register a new account with email + password. No email verification is
  *  sent: the password provider hashes the password with Scrypt and signs the
@@ -36,21 +27,19 @@ export const createAccount = mutation({
       : null;
 
     if (!user) {
-      const { _id: userId } = await ctx.runMutation(storeAuthAccount, {
-        args: {
-          type: "createAccountFromCredentials",
-          provider: "password",
-          account: {
-            id: email.toLowerCase(),
-            secret: password,
-          },
-          profile: {
-            email: email.toLowerCase(),
-            name: name ?? username,
-          },
-          shouldLinkViaEmail: false,
-          shouldLinkViaPhone: false,
+      const { _id: userId } = await convexAuth.store.mutate({
+        type: "createAccountFromCredentials",
+        provider: "password",
+        account: {
+          id: email.toLowerCase(),
+          secret: password,
         },
+        profile: {
+          email: email.toLowerCase(),
+          name: name ?? username,
+        },
+        shouldLinkViaEmail: false,
+        shouldLinkViaPhone: false,
       });
 
       await ctx.db.patch(userId, {
@@ -73,21 +62,19 @@ export const createAccount = mutation({
 
     // User already exists (e.g. guest-created account): attach the password
     // credentials and record the Kyro profile without creating a duplicate.
-    await ctx.runMutation(storeAuthAccount, {
-      args: {
-        type: "createAccountFromCredentials",
-        provider: "password",
-        account: {
-          id: email.toLowerCase(),
-          secret: password,
-        },
-        profile: {
-          email: email.toLowerCase(),
-          name: name ?? username,
-        },
-        shouldLinkViaEmail: false,
-        shouldLinkViaPhone: false,
+    await convexAuth.store.mutate({
+      type: "createAccountFromCredentials",
+      provider: "password",
+      account: {
+        id: email.toLowerCase(),
+        secret: password,
       },
+      profile: {
+        email: email.toLowerCase(),
+        name: name ?? username,
+      },
+      shouldLinkViaEmail: false,
+      shouldLinkViaPhone: false,
     });
 
     await ctx.db.patch(user._id, {
