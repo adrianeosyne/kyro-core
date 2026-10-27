@@ -15,6 +15,12 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { UserAvatar } from "@/components/app/UserAvatar";
 import { CrownBadge } from "@/components/app/CrownBadge";
+import {
+  GlobalBadgeIcon,
+  GlobalBadges,
+  GLOBAL_BADGE_META,
+  GRANTABLE_BADGES,
+} from "@/components/app/GlobalBadges";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -53,6 +59,7 @@ export function ProfileCard() {
   const block = useMutation(api.social.block);
   const unblock = useMutation(api.social.unblock);
   const createDirect = useMutation(api.conversations.createDirect);
+  const setBadges = useMutation(api.users.setBadges);
 
   const close = (open: boolean) => {
     if (open) return;
@@ -103,6 +110,8 @@ export function ProfileCard() {
   const outgoing = lists?.outgoing.find((row) => row.user?.id === userId);
   const isFriend = social?.friendship === "accepted";
   const isBlocked = (lists?.blocked ?? []).some((row) => row.user?.id === userId);
+  /** Only site admins can grant or revoke global badges. */
+  const canManageBadges = Boolean(me && (me.role === "admin" || me.isFounder));
   const presenceMeta = user
     ? PRESENCE_META[(user.presence as keyof typeof PRESENCE_META) ?? "offline"]
     : null;
@@ -162,6 +171,57 @@ export function ProfileCard() {
                 {user.bio}
               </p>
             )}
+
+            {/* Dedicated home for platform-wide badges — separate from
+                community roles, which live in each server. */}
+            <div className="rounded-md border border-border/70 bg-surface p-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Global badges
+              </p>
+              <GlobalBadges badges={user.badges} className="mt-2" />
+
+              {canManageBadges && (
+                <div className="mt-3 border-t border-border/60 pt-3">
+                  <p className="text-[11px] text-muted-foreground">
+                    You're an admin — tap a badge to grant or revoke it.
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {GRANTABLE_BADGES.map((badge) => {
+                      const granted = user.badges.includes(badge);
+                      return (
+                        <button
+                          key={badge}
+                          type="button"
+                          disabled={busy}
+                          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-opacity ${
+                            granted
+                              ? GLOBAL_BADGE_META[badge].chip
+                              : "border-border/70 text-muted-foreground hover:text-foreground"
+                          } ${busy ? "opacity-60" : ""}`}
+                          onClick={() => {
+                            void run(
+                              setBadges({
+                                userId: userId as Id<"users">,
+                                [badge]: !granted,
+                              }),
+                              granted
+                                ? `${GLOBAL_BADGE_META[badge].label} badge removed.`
+                                : `${GLOBAL_BADGE_META[badge].label} badge granted.`,
+                            );
+                          }}
+                        >
+                          <GlobalBadgeIcon badge={badge} />
+                          {GLOBAL_BADGE_META[badge].label}
+                          <span aria-hidden="true" className="text-[10px]">
+                            {granted ? "✓ grant" : "+ grant"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {profile && profile.mutualServers.length > 0 && (
               <div>
