@@ -15,6 +15,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { UserAvatar } from "@/components/app/UserAvatar";
 import { CrownBadge } from "@/components/app/CrownBadge";
+import { InlineBadge } from "@/components/app/GlobalBadges";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -35,6 +36,8 @@ export interface MessageAuthor {
   avatarUrl: string | null;
   presence: PresenceState;
   isFounder?: boolean;
+  /** Global badges (hydrated server-side) — highest is shown inline. */
+  badges?: string[];
 }
 
 export interface MessageDto {
@@ -351,14 +354,11 @@ function MessageRow({
               >
                 {author?.name ?? "Unknown user"}
               </button>
-              {author?.isFounder && (
-                <CrownBadge variant="founder" label="Kyro founder" />
-              )}
-              {!author?.isFounder &&
-                serverOwnerId &&
-                author?.id === serverOwnerId && (
-                  <CrownBadge label="Server owner" />
-                )}
+              {author?.badges && author.badges.length > 0 ? (
+                <InlineBadge badges={author.badges} />
+              ) : serverOwnerId && author?.id === serverOwnerId ? (
+                <CrownBadge label="Server owner" />
+              ) : null}
               <span className="text-[11px] text-muted-foreground">
                 {dayLabel(message.createdAt)} {formatTime(message.createdAt)}
               </span>

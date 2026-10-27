@@ -3,6 +3,7 @@ import { Circle, LogOut, Settings, User, Volume2, VolumeX } from "@/components/i
 import { api } from "@/convex/_generated/api";
 import { UserAvatar } from "@/components/app/UserAvatar";
 import { CrownBadge } from "@/components/app/CrownBadge";
+import { InlineBadge } from "@/components/app/GlobalBadges";
 import { useAuth } from "@/hooks/use-auth";
 import {
   DropdownMenu,
@@ -70,8 +71,8 @@ export function UserBar({ onOpenSettings }: { onOpenSettings?: () => void }) {
                 <span className="truncate text-sm font-medium leading-tight">
                   {me.name}
                 </span>
-                {me.isFounder ? (
-                  <CrownBadge variant="founder" label="Kyro founder" />
+                {me.badges.length > 0 ? (
+                  <InlineBadge badges={me.badges} />
                 ) : ownsServer ? (
                   <CrownBadge label="Server owner" />
                 ) : null}

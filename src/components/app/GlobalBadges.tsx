@@ -43,6 +43,53 @@ export const GLOBAL_BADGE_META: Record<
 export const GRANTABLE_BADGES = ["admin", "moderator", "verified"] as const;
 export type GrantableBadge = (typeof GRANTABLE_BADGES)[number];
 
+/** Inline display order — compact rows show only the highest of these. */
+export const BADGE_PRIORITY: GlobalBadgeKey[] = [
+  "founder",
+  "admin",
+  "moderator",
+  "verified",
+];
+
+/** The single highest-priority badge a user holds, or null for none. */
+export function topGlobalBadge(
+  badges: readonly string[],
+): GlobalBadgeKey | null {
+  return (
+    BADGE_PRIORITY.find((badge) => badges.includes(badge)) ?? null
+  );
+}
+
+/**
+ * Inline badge next to a name, styled exactly like the founder crown:
+ * renders the user's *highest* badge only (founder → admin → moderator →
+ * verified), falling back to nothing when they hold none.
+ */
+export function InlineBadge({
+  badges,
+  size = "size-3.5",
+}: {
+  badges: readonly string[];
+  /** Matches CrownBadge's default inline size. */
+  size?: string;
+}) {
+  const top = topGlobalBadge(badges);
+  if (!top) return null;
+  if (top === "founder") {
+    return <CrownBadge variant="founder" label="Kyro founder" size={size} />;
+  }
+  const label = GLOBAL_BADGE_META[top].label;
+  return (
+    <span
+      title={label}
+      className="inline-flex shrink-0 items-center align-middle"
+    >
+      <GlobalBadgeIcon badge={top} className={size} />
+      <span className="sr-only">{label}</span>
+    </span>
+  );
+}
+
 /** Scalloped bumps around the "verified" seal, as one merged silhouette. */
 const SEAL_BUMPS = Array.from({ length: 12 }, (_, index) => {
   const angle = (index * Math.PI) / 6;

@@ -5,6 +5,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { UserAvatar } from "@/components/app/UserAvatar";
 import { CrownBadge } from "@/components/app/CrownBadge";
+import { InlineBadge } from "@/components/app/GlobalBadges";
 import { Input } from "@/components/ui/input";
 import type { PresenceState } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -18,6 +19,8 @@ type Member = {
     presence: PresenceState;
     customStatus: string | null;
     isFounder?: boolean;
+    /** Global badges (hydrated server-side) — highest is shown inline. */
+    badges?: string[];
   };
   nickname: string | null;
   isOwner: boolean;
@@ -80,10 +83,11 @@ export function MemberList({ serverId }: { serverId: string }) {
           >
             {member.nickname ?? member.user.name}
           </span>
-          {member.user.isFounder && (
-            <CrownBadge variant="founder" label="Kyro founder" />
-          )}
-          {member.isOwner && <CrownBadge label="Server owner" />}
+          {member.user.badges && member.user.badges.length > 0 ? (
+            <InlineBadge badges={member.user.badges} />
+          ) : member.isOwner ? (
+            <CrownBadge label="Server owner" />
+          ) : null}
         </span>
         {member.user.customStatus && (
           <span className="block truncate text-xs text-muted-foreground">

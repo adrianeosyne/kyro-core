@@ -15,12 +15,12 @@ import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { UserAvatar } from "@/components/app/UserAvatar";
-import { CrownBadge } from "@/components/app/CrownBadge";
 import {
   GlobalBadgeIcon,
   GlobalBadges,
   GLOBAL_BADGE_META,
   GRANTABLE_BADGES,
+  InlineBadge,
 } from "@/components/app/GlobalBadges";
 import { Button } from "@/components/ui/button";
 import {
@@ -128,9 +128,7 @@ export function ProfileCard() {
                 <div className="min-w-0">
                   <p className="flex items-center gap-1.5 truncate font-semibold">
                     {user.name}
-                    {user.isFounder && (
-                      <CrownBadge variant="founder" label="Kyro founder" />
-                    )}
+                    <InlineBadge badges={user.badges} />
                   </p>
                   <p className="truncate text-sm text-muted-foreground">
                     {user.username ? `@${user.username}` : "no username yet"}
