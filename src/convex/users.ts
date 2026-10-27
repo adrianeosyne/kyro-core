@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import {
+  FOUNDER_USERNAME,
   hydrateUser,
   hydrateUsers,
   normalizeUsername,
@@ -142,6 +143,41 @@ export const updateProfile = mutation({
       }
     }
     await ctx.db.patch(id, patch);
+  },
+});
+
+/**
+ * Grant or revoke a user's platform-wide badges: Admin (site role),
+ * Moderator and Verified (dedicated flags). The Founder badge is derived
+ * from the account's username, so it can never be set here. Only site
+ * admins may call this.
+ */
+export const setBadges = mutation({
+  args: {
+    userId: v.id("users"),
+    admin: v.optional(v.boolean()),
+    moderator: v.optional(v.boolean()),
+    verified: v.optional(v.boolean()),
+  },
+  handler: async (ctx, { userId, admin, moderator, verified }) => {
+    const { id, user } = await requireUser(ctx);
+    const isAdmin =
+      user.role === "admin" ||
+      (user.username ?? "").toLowerCase() === FOUNDER_USERNAME;
+    if (!isAdmin) throw new Error("Only admins can manage global badges.");
+    if (admin === undefined && moderator === undefined && verified === undefined) {
+      throw new Error("Nothing to update.");
+    }
+    if (admin === false && userId === id) {
+      throw new Error("You can't remove your own Admin badge.");
+    }
+    const target = await ctx.db.get(userId);
+    if (!target) throw new Error("That user no longer exists.");
+    const patch: Partial<Doc<"users">> = {};
+    if (admin !== undefined) patch.role = admin ? "admin" : "user";
+    if (moderator !== undefined) patch.siteModerator = moderator;
+    if (verified !== undefined) patch.verified = verified;
+    await ctx.db.patch(userId, patch);
   },
 });
 

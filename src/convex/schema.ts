@@ -40,6 +40,12 @@ const schema = defineSchema(
 
       role: v.optional(roleValidator), // role of the user. do not remove
 
+      // --- Platform-wide (global) badges, granted by staff ---
+      /** Site-wide Moderator badge — not tied to any one community. */
+      siteModerator: v.optional(v.boolean()),
+      /** Site-wide Verified badge — granted by admins. */
+      verified: v.optional(v.boolean()),
+
       // --- Kyro profile + presence ---
       /** Unique, lowercased handle used for @mentions and friend search. */
       username: v.optional(v.string()),

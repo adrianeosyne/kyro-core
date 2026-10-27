@@ -78,10 +78,19 @@ export interface PublicUser {
   isAnonymous: boolean;
   /** Kyro's founder: their crown badge is shown to every viewer, everywhere. */
   isFounder: boolean;
+  /**
+   * Global (platform-wide) badges shown in the profile's own badge shelf —
+   * separate from community roles. Always in this order:
+   * founder, admin, moderator, verified.
+   */
+  badges: GlobalBadge[];
 }
 
 /** The one account that carries Kyro's platform-wide founder crown. */
 export const FOUNDER_USERNAME = "adrianeosyne";
+
+/** A platform-wide badge; never scoped to a single community. */
+export type GlobalBadge = "founder" | "admin" | "moderator" | "verified";
 
 export async function hydrateUser(
   ctx: Ctx,
@@ -96,6 +105,14 @@ export async function hydrateUser(
       ? ctx.storage.getUrl(user.bannerStorageId)
       : Promise.resolve(null),
   ]);
+  const isFounder =
+    (user.username ?? "").toLowerCase() === FOUNDER_USERNAME;
+  const badges: GlobalBadge[] = [];
+  if (isFounder) badges.push("founder");
+  // Kyro's founder runs the platform, so they carry the Admin badge too.
+  if (user.role === "admin" || isFounder) badges.push("admin");
+  if (user.siteModerator === true) badges.push("moderator");
+  if (user.verified === true) badges.push("verified");
   return {
     id: user._id,
     username: user.username ?? null,
@@ -108,8 +125,8 @@ export async function hydrateUser(
     accent: user.accent ?? null,
     lastSeen: user.lastSeen ?? null,
     isAnonymous: user.isAnonymous === true,
-    isFounder:
-      (user.username ?? "").toLowerCase() === FOUNDER_USERNAME,
+    isFounder,
+    badges,
   };
 }
 
