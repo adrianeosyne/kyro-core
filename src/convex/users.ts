@@ -96,6 +96,15 @@ export const updateProfile = mutation({
     accent: v.optional(v.string()),
     avatarStorageId: v.optional(v.union(v.id("_storage"), v.null())),
     bannerStorageId: v.optional(v.union(v.id("_storage"), v.null())),
+    links: v.optional(
+      v.array(
+        v.object({
+          label: v.string(),
+          url: v.string(),
+        }),
+      ),
+    ),
+    avatarFrame: v.optional(v.union(v.string(), v.null())),
     status: v.optional(v.union(
       v.literal("online"),
       v.literal("idle"),
@@ -141,6 +150,33 @@ export const updateProfile = mutation({
       } else {
         patch.bannerStorageId = args.bannerStorageId;
       }
+    }
+    if (args.links !== undefined) {
+      if (args.links.length > 6) {
+        throw new Error("You can keep up to 6 profile links.");
+      }
+      const links = args.links
+        .map((link) => ({
+          label: link.label.trim().slice(0, 32),
+          url: link.url.trim().slice(0, 200),
+        }))
+        .filter((link) => link.label.length > 0 && link.url.length > 0);
+      for (const link of links) {
+        if (!/^https?:\/\//i.test(link.url)) {
+          throw new Error(
+            `Links need to start with http:// or https:// — check "${link.label}".`,
+          );
+        }
+      }
+      patch.links = links;
+    }
+    if (args.avatarFrame !== undefined) {
+      // Keep in sync with AVATAR_FRAMES in src/lib/frames.ts.
+      const knownFrames = ["ember", "aqua", "forest", "kyro", "gold", "rose"];
+      patch.avatarFrame =
+        args.avatarFrame && knownFrames.includes(args.avatarFrame)
+          ? args.avatarFrame
+          : undefined;
     }
     await ctx.db.patch(id, patch);
   },

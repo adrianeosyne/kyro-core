@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { ArrowLeft, Loader2, Plus, Trash2 } from "@/components/icons";
+import { ArrowLeft, Copy, Loader2, Plus, Trash2, X } from "@/components/icons";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -34,6 +34,7 @@ export function ServerSettings({ serverId }: { serverId: string }) {
   });
   const update = useMutation(api.servers.update);
   const remove = useMutation(api.servers.remove);
+  const setVanity = useMutation(api.servers.setVanity);
   const navigate = useNavigate();
   const upload = useUploadFile();
 
@@ -44,15 +45,21 @@ export function ServerSettings({ serverId }: { serverId: string }) {
     rules: "",
     welcomeMessage: "",
     isPublic: true,
+    tags: [] as string[],
   });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState<"icon" | "banner" | null>(null);
   const [confirmName, setConfirmName] = useState("");
+  const [tagDraft, setTagDraft] = useState("");
+  const [vanityDraft, setVanityDraft] = useState("");
+  const [vanityBusy, setVanityBusy] = useState(false);
 
   // Seed the form whenever the query resolves or the server changes. Done
   // during render (React's supported "adjust state on prop change" pattern)
   // so switching servers never keeps the previous server's edits.
-  const seedKey = server ? `${server.id}:${server.name}:${server.isPublic}` : "";
+  const seedKey = server
+    ? `${server.id}:${server.name}:${server.isPublic}:${server.tags.join("|")}:${server.vanityCode ?? ""}`
+    : "";
   const [seededKey, setSeededKey] = useState("");
   if (server && seededKey !== seedKey) {
     setSeededKey(seedKey);
@@ -62,7 +69,9 @@ export function ServerSettings({ serverId }: { serverId: string }) {
       rules: server.rules ?? "",
       welcomeMessage: server.welcomeMessage ?? "",
       isPublic: server.isPublic,
+      tags: [...server.tags],
     });
+    setVanityDraft(server.vanityCode ?? "");
   }
 
   if (server === undefined) {
@@ -111,6 +120,7 @@ export function ServerSettings({ serverId }: { serverId: string }) {
         rules: form.rules.trim(),
         welcomeMessage: form.welcomeMessage.trim(),
         isPublic: form.isPublic,
+        tags: form.tags,
       });
       toast.success("Server updated.");
     } catch (error) {
@@ -146,6 +156,40 @@ export function ServerSettings({ serverId }: { serverId: string }) {
       );
     } finally {
       setUploading(null);
+    }
+  };
+
+  const addTag = () => {
+    const tag = tagDraft.trim().toLowerCase();
+    if (!tag) return;
+    if (form.tags.length >= 5) {
+      toast.error("Servers can have up to 5 tags.");
+      return;
+    }
+    if (form.tags.includes(tag)) {
+      setTagDraft("");
+      return;
+    }
+    setForm({ ...form, tags: [...form.tags, tag] });
+    setTagDraft("");
+  };
+
+  const saveVanity = async () => {
+    if (vanityBusy) return;
+    setVanityBusy(true);
+    try {
+      await setVanity({ serverId: serverId as Id<"servers">, code: vanityDraft });
+      toast.success(
+        vanityDraft.trim()
+          ? `Custom invite link saved: /invite/${vanityDraft.trim().toLowerCase()}`
+          : "Custom invite link removed.",
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not save that link.",
+      );
+    } finally {
+      setVanityBusy(false);
     }
   };
 
@@ -351,6 +395,125 @@ export function ServerSettings({ serverId }: { serverId: string }) {
                   }
                   aria-label="Discoverable"
                 />
+              </div>
+
+              {/* Preview stats: exactly what Discovery cards show. */}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border border-border/60 bg-surface px-3 py-2.5 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <span className="size-1.5 rounded-full bg-success" />
+                  {server.onlineCount} online
+                </span>
+                <span>{server.memberCount} members</span>
+                <span>
+                  Est. {new Date(server.createdAt).toLocaleDateString(undefined, { month: "short", year: "numeric" })}
+                </span>
+              </div>
+            </div>
+
+            <h2 className="mt-7 text-sm font-semibold">Discovery tags</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              How your server appears in invite links and Discovery. People
+              search these — up to 5.
+            </p>
+            <div className="mt-3">
+              <div className="flex flex-wrap gap-1.5">
+                {form.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-surface px-2.5 py-1 text-xs"
+                  >
+                    {tag}
+                    <button
+                      type="button"
+                      aria-label={`Remove tag ${tag}`}
+                      onClick={() =>
+                        setForm({ ...form, tags: form.tags.filter((t) => t !== tag) })
+                      }
+                      className="text-muted-foreground hover:text-destructive"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                ))}
+                {form.tags.length === 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    No tags yet — add a few below.
+                  </span>
+                )}
+              </div>
+              <div className="mt-2 flex gap-2">
+                <Input
+                  value={tagDraft}
+                  onChange={(event) => setTagDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      addTag();
+                    }
+                  }}
+                  placeholder="e.g. gaming, coding, chill"
+                  maxLength={24}
+                  className="flex-1"
+                  aria-label="New tag"
+                />
+                <Button variant="outline" onClick={addTag}>
+                  <Plus className="mr-1 size-4" /> Add tag
+                </Button>
+              </div>
+            </div>
+
+            <h2 className="mt-7 text-sm font-semibold">Custom invite link</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Pick a memorable link for your server. Letters, numbers, dashes
+              and underscores.
+            </p>
+            <div className="mt-3 rounded-md border border-border/60 bg-surface p-3">
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="text-muted-foreground">
+                  {typeof window !== "undefined" ? window.location.origin : ""}/invite/
+                </span>
+                <Input
+                  value={vanityDraft}
+                  onChange={(event) =>
+                    setVanityDraft(event.target.value.toLowerCase())
+                  }
+                  placeholder="my-server"
+                  maxLength={24}
+                  className="h-8 w-44 flex-1"
+                  aria-label="Custom invite code"
+                />
+                <Button
+                  size="sm"
+                  onClick={() => void saveVanity()}
+                  disabled={
+                    vanityBusy ||
+                    (vanityDraft ?? "") === (server.vanityCode ?? "")
+                  }
+                >
+                  {vanityBusy && <Loader2 className="mr-1.5 size-4 animate-spin" />}
+                  Save link
+                </Button>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                <span className="truncate">
+                  {server.vanityCode
+                    ? `Current: ${window.location.origin}/invite/${server.vanityCode}`
+                    : "No custom link yet — your default invite code still works."}
+                </span>
+                {server.vanityCode && (
+                  <button
+                    type="button"
+                    className="flex shrink-0 items-center gap-1 hover:text-foreground"
+                    onClick={() => {
+                      void navigator.clipboard
+                        .writeText(`${window.location.origin}/invite/${server.vanityCode}`)
+                        .then(() => toast.success("Link copied."))
+                        .catch(() => toast.error("Clipboard access was blocked by the browser."));
+                    }}
+                  >
+                    <Copy className="size-3.5" /> Copy
+                  </button>
+                )}
               </div>
             </div>
             <div className="mt-4 flex justify-end">

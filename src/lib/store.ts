@@ -27,6 +27,8 @@ export interface Preferences {
   accent: AccentChoice;
   density: Density;
   showMemberList: boolean;
+  /** Play a soft ping when notifications arrive while the tab is hidden. */
+  notificationSounds: boolean;
 }
 
 const DEFAULT_PREFS: Preferences = {
@@ -34,6 +36,7 @@ const DEFAULT_PREFS: Preferences = {
   accent: "default",
   density: "comfortable",
   showMemberList: true,
+  notificationSounds: true,
 };
 
 function loadPrefs(): Preferences {
@@ -89,6 +92,7 @@ export const useUiStore = create<AppState>((set, get) => ({
       accent: next.accent,
       density: next.density,
       showMemberList: next.showMemberList,
+      notificationSounds: next.notificationSounds,
     };
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));

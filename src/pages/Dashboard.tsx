@@ -5,6 +5,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { AppShell } from "@/components/app/AppShell";
 import { ChannelChat, DirectChat } from "@/components/app/ChatView";
+import { DiscoverView } from "@/components/app/DiscoverView";
 import { FriendsView } from "@/components/app/Friends";
 import { ServerSettings } from "@/components/app/ServerSettings";
 
@@ -17,6 +18,7 @@ export default function Dashboard() {
     <AppShell>
       <Routes>
         <Route index element={<FriendsView />} />
+        <Route path="discover" element={<DiscoverView />} />
         <Route path="dm" element={<Navigate to="/dashboard" replace />} />
         <Route path="dm/:conversationId" element={<DirectChatRoute />} />
         <Route path="s/:serverId" element={<ServerIndexRoute />} />

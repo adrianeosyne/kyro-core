@@ -70,6 +70,12 @@ const schema = defineSchema(
       createdAt: v.optional(v.number()),
       /** Username changes are limited to once every 30 days. */
       usernameChangedAt: v.optional(v.number()),
+      /** External profile links (YouTube, site, portfolio …), max 6. */
+      links: v.optional(
+        v.array(v.object({ label: v.string(), url: v.string() })),
+      ),
+      /** Built-in avatar frame id from the profile editor. */
+      avatarFrame: v.optional(v.string()),
     })
       .index("email", ["email"]) // index for the email. do not remove or modify
       .index("by_username", ["username"]),
@@ -132,11 +138,18 @@ const schema = defineSchema(
       isPublic: v.boolean(),
       rules: v.optional(v.string()),
       welcomeMessage: v.optional(v.string()),
+      /** Discovery tags shown on explore cards, e.g. "gaming", "coding". */
+      tags: v.optional(v.array(v.string())),
+      /** Custom invite path segment: kyro.app/invite/<vanityCode>. */
+      vanityCode: v.optional(v.string()),
+      /** Server-wide lockdown: only staff with manage_messages can post. */
+      locked: v.optional(v.boolean()),
       createdAt: v.number(),
       updatedAt: v.optional(v.number()),
     })
       .index("by_owner", ["ownerId"])
       .index("by_created", ["createdAt"])
+      .index("by_vanity", ["vanityCode"])
       .searchIndex("search_name", {
         searchField: "name",
         filterFields: ["isPublic"],

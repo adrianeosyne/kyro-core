@@ -7,6 +7,7 @@ import {
   hydrateUsers,
   logAudit,
   notify,
+  PRESENCE_TIMEOUT_MS,
   requireProfile,
   requireServerAccess,
   requireUser,
@@ -129,19 +130,35 @@ export const discover = query({
   args: { term: v.string() },
   handler: async (ctx, { term }) => {
     const { id } = await requireUser(ctx);
-    const needle = term.trim();
-    const servers = needle
+    const needle = term.trim().toLowerCase();
+    // Name matches come from the search index; descriptions and tags are
+    // matched over the recent public set so "search by name, topic or tag"
+    // is literally true on the Discover page.
+    const byName = needle
       ? await ctx.db
           .query("servers")
           .withSearchIndex("search_name", (q) =>
-            q.search("name", needle).eq("isPublic", true),
+            q.search("name", term.trim()).eq("isPublic", true),
           )
           .take(30)
-      : await ctx.db
-          .query("servers")
-          .withIndex("by_created")
-          .order("desc")
-          .take(30);
+      : [];
+    const recent = await ctx.db
+      .query("servers")
+      .withIndex("by_created")
+      .order("desc")
+      .take(100);
+    const servers = [
+      ...byName,
+      ...recent.filter(
+        (server) =>
+          server.isPublic &&
+          !byName.some((hit) => hit._id === server._id) &&
+          (!needle ||
+            server.name.toLowerCase().includes(needle) ||
+            (server.description ?? "").toLowerCase().includes(needle) ||
+            (server.tags ?? []).some((tag) => tag.includes(needle))),
+      ),
+    ].slice(0, 30);
 
     const mine = await ctx.db
       .query("serverMembers")
@@ -154,22 +171,41 @@ export const discover = query({
         .filter((server) => server.isPublic && !joined.has(server._id))
         .slice(0, 24)
         .map(async (server) => {
-          const [iconUrl, memberCount] = await Promise.all([
+          const [iconUrl, bannerUrl, memberRows] = await Promise.all([
             server.iconStorageId
               ? ctx.storage.getUrl(server.iconStorageId)
+              : Promise.resolve(null),
+            server.bannerStorageId
+              ? ctx.storage.getUrl(server.bannerStorageId)
               : Promise.resolve(null),
             ctx.db
               .query("serverMembers")
               .withIndex("by_server", (q) => q.eq("serverId", server._id))
-              .collect()
-              .then((rows) => rows.length),
+              .collect(),
           ]);
+          // Presence for every member, so cards can show who's online now.
+          const memberDocs = await Promise.all(
+            memberRows.slice(0, 200).map((row) => ctx.db.get(row.userId)),
+          );
+          const now = Date.now();
+          const online = memberDocs.filter(
+            (member) =>
+              member &&
+              member.lastSeen !== undefined &&
+              now - member.lastSeen < PRESENCE_TIMEOUT_MS &&
+              member.status !== "invisible" &&
+              member.status !== "offline",
+          ).length;
           return {
             id: server._id as string,
             name: server.name,
             description: server.description ?? null,
             iconUrl,
-            memberCount,
+            bannerUrl,
+            tags: server.tags ?? [],
+            memberCount: memberRows.length,
+            onlineCount: online,
+            createdAt: server.createdAt,
           };
         }),
     );
@@ -182,7 +218,7 @@ export const get = query({
   handler: async (ctx, { serverId }) => {
     const { id } = await requireUser(ctx);
     const access = await requireServerAccess(ctx, serverId, id);
-    const [iconUrl, bannerUrl, memberCount, roles] = await Promise.all([
+    const [iconUrl, bannerUrl, memberRows, roles] = await Promise.all([
       access.server.iconStorageId
         ? ctx.storage.getUrl(access.server.iconStorageId)
         : Promise.resolve(null),
@@ -192,13 +228,25 @@ export const get = query({
       ctx.db
         .query("serverMembers")
         .withIndex("by_server", (q) => q.eq("serverId", serverId))
-        .collect()
-        .then((rows) => rows.length),
+        .collect(),
       ctx.db
         .query("serverRoles")
         .withIndex("by_server_position", (q) => q.eq("serverId", serverId))
         .collect(),
     ]);
+    // Presence over this community's members, for the settings stats row.
+    const memberDocs = await Promise.all(
+      memberRows.slice(0, 200).map((row) => ctx.db.get(row.userId)),
+    );
+    const now = Date.now();
+    const onlineCount = memberDocs.filter(
+      (member) =>
+        member &&
+        member.lastSeen !== undefined &&
+        now - member.lastSeen < PRESENCE_TIMEOUT_MS &&
+        member.status !== "invisible" &&
+        member.status !== "offline",
+    ).length;
     return {
       id: access.server._id as string,
       name: access.server.name,
@@ -209,7 +257,12 @@ export const get = query({
       ownerId: access.server.ownerId as string,
       iconUrl,
       bannerUrl,
-      memberCount,
+      memberCount: memberRows.length,
+      onlineCount,
+      tags: access.server.tags ?? [],
+      vanityCode: access.server.vanityCode ?? null,
+      locked: access.server.locked === true,
+      createdAt: access.server.createdAt,
       isOwner: access.server.ownerId === id,
       muted: access.member.muted === true,
       nickname: access.member.nickname ?? null,
@@ -294,23 +347,53 @@ export const invitePreview = query({
   args: { code: v.string() },
   handler: async (ctx, { code }) => {
     const { id } = await requireUser(ctx);
+    const trimmed = code.trim();
     const invite = await ctx.db
       .query("invites")
-      .withIndex("by_code", (q) => q.eq("code", code.toUpperCase()))
+      .withIndex("by_code", (q) => q.eq("code", trimmed.toUpperCase()))
       .unique();
-    if (!invite || invite.revoked) return { valid: false as const, reason: "This invite has been revoked or doesn't exist." };
-    if (invite.expiresAt && invite.expiresAt < Date.now()) {
-      return { valid: false as const, reason: "This invite has expired." };
+
+    let server: Doc<"servers"> | null = null;
+    let expiresAt: number | null = null;
+    let uses = 0;
+    let maxUses: number | null = null;
+
+    if (invite && !invite.revoked) {
+      if (invite.expiresAt && invite.expiresAt < Date.now()) {
+        return { valid: false as const, reason: "This invite has expired." };
+      }
+      if (invite.maxUses && invite.uses >= invite.maxUses) {
+        return {
+          valid: false as const,
+          reason: "This invite has reached its use limit.",
+        };
+      }
+      server = await ctx.db.get(invite.serverId);
+      expiresAt = invite.expiresAt ?? null;
+      uses = invite.uses;
+      maxUses = invite.maxUses ?? null;
+    } else {
+      // Custom (vanity) invite links: permanent and unlimited by design.
+      server = await ctx.db
+        .query("servers")
+        .withIndex("by_vanity", (q) =>
+          q.eq("vanityCode", trimmed.toLowerCase()),
+        )
+        .unique();
+      if (server && !server.isPublic) {
+        return { valid: false as const, reason: "That community is invite-only." };
+      }
     }
-    if (invite.maxUses && invite.uses >= invite.maxUses) {
-      return { valid: false as const, reason: "This invite has reached its use limit." };
+    if (!server) {
+      return {
+        valid: false as const,
+        reason: "This invite has been revoked or doesn't exist.",
+      };
     }
-    const server = await ctx.db.get(invite.serverId);
-    if (!server) return { valid: false as const, reason: "That community no longer exists." };
     const membership = await ctx.db
       .query("serverMembers")
       .withIndex("by_server_user", (q) =>
-        q.eq("serverId", server._id).eq("userId", id),
+        q.eq("serverId", server!._id).eq("userId", id),
       )
       .unique();
     const [iconUrl, memberCount] = await Promise.all([
@@ -319,7 +402,7 @@ export const invitePreview = query({
         : Promise.resolve(null),
       ctx.db
         .query("serverMembers")
-        .withIndex("by_server", (q) => q.eq("serverId", server._id))
+        .withIndex("by_server", (q) => q.eq("serverId", server!._id))
         .collect()
         .then((rows) => rows.length),
     ]);
@@ -333,9 +416,9 @@ export const invitePreview = query({
         memberCount,
       },
       alreadyMember: membership !== null,
-      expiresAt: invite.expiresAt ?? null,
-      uses: invite.uses,
-      maxUses: invite.maxUses ?? null,
+      expiresAt,
+      uses,
+      maxUses,
     };
   },
 });
@@ -418,6 +501,7 @@ export const update = mutation({
     rules: v.optional(v.string()),
     welcomeMessage: v.optional(v.string()),
     isPublic: v.optional(v.boolean()),
+    tags: v.optional(v.array(v.string())),
     iconStorageId: v.optional(v.union(v.id("_storage"), v.null())),
     bannerStorageId: v.optional(v.union(v.id("_storage"), v.null())),
   },
@@ -441,6 +525,13 @@ export const update = mutation({
       patch.welcomeMessage = args.welcomeMessage.trim().slice(0, 500);
     }
     if (args.isPublic !== undefined) patch.isPublic = args.isPublic;
+    if (args.tags !== undefined) {
+      const tags = args.tags
+        .map((tag) => tag.trim().toLowerCase().slice(0, 24))
+        .filter((tag) => tag.length > 0 && /^[a-z0-9][a-z0-9 &+-]*$/.test(tag))
+        .slice(0, 5);
+      patch.tags = Array.from(new Set(tags));
+    }
     if (args.iconStorageId !== undefined) {
       patch.iconStorageId = args.iconStorageId === null ? undefined : args.iconStorageId;
     }
@@ -922,19 +1013,34 @@ export const joinByCode = mutation({
   args: { code: v.string() },
   handler: async (ctx, { code }) => {
     const { id, user } = await requireProfile(ctx);
+    const trimmed = code.trim();
     const invite = await ctx.db
       .query("invites")
-      .withIndex("by_code", (q) => q.eq("code", code.trim().toUpperCase()))
+      .withIndex("by_code", (q) => q.eq("code", trimmed.toUpperCase()))
       .unique();
-    if (!invite || invite.revoked) throw new Error("That invite is invalid.");
-    if (invite.expiresAt && invite.expiresAt < Date.now()) {
-      throw new Error("That invite has expired.");
+
+    let server: Doc<"servers"> | null = null;
+    if (invite && !invite.revoked) {
+      if (invite.expiresAt && invite.expiresAt < Date.now()) {
+        throw new Error("That invite has expired.");
+      }
+      if (invite.maxUses && invite.uses >= invite.maxUses) {
+        throw new Error("That invite has reached its use limit.");
+      }
+      server = await ctx.db.get(invite.serverId);
+    } else {
+      // Custom (vanity) invite links join without a one-time invite row.
+      server = await ctx.db
+        .query("servers")
+        .withIndex("by_vanity", (q) =>
+          q.eq("vanityCode", trimmed.toLowerCase()),
+        )
+        .unique();
+      if (server && !server.isPublic) {
+        throw new Error("That community is invite-only.");
+      }
     }
-    if (invite.maxUses && invite.uses >= invite.maxUses) {
-      throw new Error("That invite has reached its use limit.");
-    }
-    const server = await ctx.db.get(invite.serverId);
-    if (!server) throw new Error("That community no longer exists.");
+    if (!server) throw new Error("That invite is invalid.");
     const banned = await ctx.db
       .query("bans")
       .withIndex("by_server_user", (q) =>
@@ -956,7 +1062,9 @@ export const joinByCode = mutation({
         roleIds: [],
         joinedAt: Date.now(),
       });
-      await ctx.db.patch(invite._id, { uses: invite.uses + 1 });
+      if (invite && !invite.revoked) {
+        await ctx.db.patch(invite._id, { uses: invite.uses + 1 });
+      }
       await logAudit(ctx, {
         serverId: server._id,
         actorId: id,
@@ -967,6 +1075,87 @@ export const joinByCode = mutation({
       });
     }
     return server._id as string;
+  },
+});
+
+/**
+ * Pick the community's permanent invite path: kyro.app/invite/<code>.
+ * Letters, numbers, dashes and underscores — never expires, never capped.
+ */
+export const setVanity = mutation({
+  args: { serverId: v.id("servers"), code: v.string() },
+  handler: async (ctx, { serverId, code }) => {
+    const { id } = await requireUser(ctx);
+    const access = await requireServerAccess(ctx, serverId, id);
+    if (
+      access.server.ownerId !== id &&
+      !can(access.permissions, PERMISSIONS.MANAGE_SERVER)
+    ) {
+      throw new Error("You don't have permission to edit this community.");
+    }
+
+    const clean = code.trim().toLowerCase();
+    if (clean === "") {
+      await ctx.db.patch(serverId, {
+        vanityCode: undefined,
+        updatedAt: Date.now(),
+      });
+      return;
+    }
+    if (!/^[a-z0-9][a-z0-9_-]{2,23}$/.test(clean)) {
+      throw new Error(
+        "Custom links are 3–24 characters: letters, numbers, dashes and underscores.",
+      );
+    }
+    const taken = await ctx.db
+      .query("servers")
+      .withIndex("by_vanity", (q) => q.eq("vanityCode", clean))
+      .unique();
+    if (taken && taken._id !== serverId) {
+      throw new Error("That link is already taken — try another one.");
+    }
+    const inviteClash = await ctx.db
+      .query("invites")
+      .withIndex("by_code", (q) => q.eq("code", clean.toUpperCase()))
+      .unique();
+    if (inviteClash) throw new Error("That link is already used by an invite.");
+
+    await ctx.db.patch(serverId, { vanityCode: clean, updatedAt: Date.now() });
+    await logAudit(ctx, {
+      serverId,
+      actorId: id,
+      action: "server.update",
+      targetType: "server",
+      targetId: serverId,
+      details: `custom invite link set to ${clean}`,
+    });
+  },
+});
+
+/**
+ * Server-wide lockdown: while locked, only staff with manage_messages can
+ * post. Members keep read access, so announcements still reach everyone.
+ */
+export const setLocked = mutation({
+  args: { serverId: v.id("servers"), locked: v.boolean() },
+  handler: async (ctx, { serverId, locked }) => {
+    const { id } = await requireUser(ctx);
+    const access = await requireServerAccess(ctx, serverId, id);
+    if (
+      access.server.ownerId !== id &&
+      !can(access.permissions, PERMISSIONS.MANAGE_SERVER)
+    ) {
+      throw new Error("You don't have permission to lock this community.");
+    }
+    await ctx.db.patch(serverId, { locked, updatedAt: Date.now() });
+    await logAudit(ctx, {
+      serverId,
+      actorId: id,
+      action: locked ? "server.lock" : "server.unlock",
+      targetType: "server",
+      targetId: serverId,
+      details: locked ? "community locked" : "community unlocked",
+    });
   },
 });
 

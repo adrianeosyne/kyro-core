@@ -84,6 +84,12 @@ export interface PublicUser {
    * founder, admin, moderator, verified.
    */
   badges: GlobalBadge[];
+  /** External links shown on the profile, in the order they were saved. */
+  links: { label: string; url: string }[];
+  /** Built-in avatar frame id, or null for a plain avatar. */
+  avatarFrame: string | null;
+  /** Account creation timestamp, shown as "member since" on profiles. */
+  memberSince: number | null;
 }
 
 /** The one account that carries Kyro's platform-wide founder crown. */
@@ -127,6 +133,9 @@ export async function hydrateUser(
     isAnonymous: user.isAnonymous === true,
     isFounder,
     badges,
+    links: (user.links ?? []).slice(0, 6),
+    avatarFrame: user.avatarFrame ?? null,
+    memberSince: user.createdAt ?? null,
   };
 }
 

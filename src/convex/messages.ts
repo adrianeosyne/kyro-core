@@ -254,6 +254,11 @@ export const send = mutation({
       if (channel.readOnly && !can(permissions, PERMISSIONS.MANAGE_MESSAGES)) {
         throw new Error("This channel is read-only.");
       }
+      if (access.server.locked === true && !can(permissions, PERMISSIONS.MANAGE_MESSAGES)) {
+        throw new Error(
+          "This community is locked — only staff can post right now.",
+        );
+      }
       if (!can(permissions, PERMISSIONS.SEND_MESSAGES)) {
         throw new Error("You don't have permission to send messages here.");
       }

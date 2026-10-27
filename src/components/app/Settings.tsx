@@ -6,10 +6,12 @@ import {
   Monitor,
   Moon,
   Palette,
+  Plus,
   ShieldCheck,
   Sun,
   Trash2,
   User as UserIcon,
+  X,
 } from "@/components/icons";
 import { useState } from "react";
 import { api } from "@/convex/_generated/api";
@@ -36,9 +38,12 @@ import {
   type Density,
   type ThemeChoice,
 } from "@/lib/store";
+import { AVATAR_FRAMES } from "@/lib/frames";
 import { MAX_UPLOAD_BYTES, useUploadFile } from "@/lib/upload";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+
+type ProfileLink = { label: string; url: string };
 
 type TabId =
   | "account"
@@ -230,6 +235,10 @@ function ProfileTab() {
   const [name, setName] = useState<string | null>(null);
   const [bio, setBio] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const [links, setLinks] = useState<ProfileLink[] | null>(null);
+  // undefined = not touched yet, null = plain avatar (no frame).
+  const [frameSel, setFrameSel] = useState<string | null | undefined>(undefined);
+  const [linksBusy, setLinksBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
@@ -403,6 +412,174 @@ function ProfileTab() {
             <Button onClick={save} disabled={busy}>
               {busy && <Loader2 className="mr-2 size-4 animate-spin" />}
               Save profile
+            </Button>
+          </div>
+        </div>
+      </Section>
+
+      <Section
+        title="Avatar frame"
+        description="Give your profile a fresh look — a frame around your picture. Built-in ones are free."
+      >
+        <div className="flex flex-wrap items-start gap-6">
+          <div className="flex flex-col items-center gap-2">
+            <UserAvatar
+              user={{ ...me, avatarFrame: frameSel === undefined ? me.avatarFrame : frameSel }}
+              size="xl"
+            />
+            <span className="text-xs text-muted-foreground">
+              {(() => {
+                const id = frameSel === undefined ? me.avatarFrame : frameSel;
+                return AVATAR_FRAMES.find((frame) => frame.id === id)?.label ?? "No frame";
+              })()}
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+            <button
+              type="button"
+              onClick={() => {
+                if ((frameSel === undefined ? me.avatarFrame : frameSel) === null) return;
+                setFrameSel(null);
+                void update({ avatarFrame: null }).catch((error) => {
+                  setFrameSel(undefined);
+                  toast.error(
+                    error instanceof Error ? error.message : "Could not remove the frame.",
+                  );
+                });
+              }}
+              className={cn(
+                "flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-xs transition-colors",
+                (frameSel === undefined ? me.avatarFrame : frameSel) === null
+                  ? "border-primary bg-primary/10 text-foreground"
+                  : "border-border/70 text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <span className="flex size-10 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground">
+                <X className="size-4" />
+              </span>
+              None
+            </button>
+            {AVATAR_FRAMES.map((frame) => {
+              const active = (frameSel === undefined ? me.avatarFrame : frameSel) === frame.id;
+              return (
+                <button
+                  key={frame.id}
+                  type="button"
+                  onClick={() => {
+                    setFrameSel(frame.id);
+                    void update({ avatarFrame: frame.id }).catch((error) => {
+                      setFrameSel(undefined);
+                      toast.error(error instanceof Error ? error.message : "Could not save the frame.");
+                    });
+                  }}
+                  className={cn(
+                    "flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-xs transition-colors",
+                    active
+                      ? "border-primary bg-primary/10 text-foreground"
+                      : "border-border/70 text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "size-10 rounded-full bg-gradient-to-br p-[3px]",
+                      frame.gradient,
+                    )}
+                  >
+                    <span className="flex size-full items-center justify-center rounded-full bg-panel text-[10px] font-semibold">
+                      {frame.label.slice(0, 2)}
+                    </span>
+                  </span>
+                  {frame.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </Section>
+
+      <Section
+        title="Links"
+        description="Shown on your profile — up to 6. Think YouTube, portfolio, a site you run."
+      >
+        <div className="space-y-2">
+          {(links ?? me.links).map((link, index) => (
+            <div key={index} className="flex gap-2">
+              <Input
+                value={link.label}
+                placeholder="Label (e.g. YouTube)"
+                maxLength={40}
+                className="w-40 flex-none"
+                onChange={(event) => {
+                  const next = [...(links ?? me.links)];
+                  next[index] = { ...next[index], label: event.target.value };
+                  setLinks(next);
+                }}
+              />
+              <Input
+                value={link.url}
+                placeholder="https://…"
+                maxLength={200}
+                className="flex-1"
+                onChange={(event) => {
+                  const next = [...(links ?? me.links)];
+                  next[index] = { ...next[index], url: event.target.value };
+                  setLinks(next);
+                }}
+              />
+              <button
+                type="button"
+                aria-label={`Remove link ${link.label || index + 1}`}
+                className="rounded-md border border-border/70 px-2 text-muted-foreground hover:text-destructive"
+                onClick={() =>
+                  setLinks((links ?? me.links).filter((_, i) => i !== index))
+                }
+              >
+                <Trash2 className="size-4" />
+              </button>
+            </div>
+          ))}
+          {(links ?? me.links).length === 0 && (
+            <p className="text-sm text-muted-foreground">No links yet.</p>
+          )}
+          <div className="flex items-center justify-between gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={(links ?? me.links).length >= 6}
+              onClick={() =>
+                setLinks([...(links ?? me.links), { label: "", url: "" }])
+              }
+            >
+              <Plus className="mr-1.5 size-4" /> Add link
+            </Button>
+            <Button
+              size="sm"
+              disabled={linksBusy || links === null}
+              onClick={async () => {
+                const rows = (links ?? []).filter(
+                  (link) => link.label.trim() && link.url.trim(),
+                );
+                for (const row of rows) {
+                  if (!/^https?:\/\//i.test(row.url.trim())) {
+                    row.url = `https://${row.url.trim()}`;
+                  }
+                }
+                setLinksBusy(true);
+                try {
+                  await update({ links: rows });
+                  toast.success("Links saved");
+                  setLinks(null);
+                } catch (error) {
+                  toast.error(
+                    error instanceof Error ? error.message : "Could not save links.",
+                  );
+                } finally {
+                  setLinksBusy(false);
+                }
+              }}
+            >
+              {linksBusy && <Loader2 className="mr-2 size-4 animate-spin" />}
+              Save links
             </Button>
           </div>
         </div>

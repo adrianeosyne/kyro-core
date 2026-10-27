@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "convex/react";
-import { Circle, LogOut, Settings } from "@/components/icons";
+import { Circle, LogOut, Settings, Volume2, VolumeX } from "@/components/icons";
 import { api } from "@/convex/_generated/api";
 import { UserAvatar } from "@/components/app/UserAvatar";
 import { CrownBadge } from "@/components/app/CrownBadge";
@@ -13,7 +13,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import type { StatusChoice } from "@/lib/store";
+import { Switch } from "@/components/ui/switch";
+import { useUiStore, type StatusChoice } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -36,6 +37,8 @@ export function UserBar({ onOpenSettings }: { onOpenSettings?: () => void }) {
   const setPresence = useMutation(api.users.setPresence);
   const { signOut } = useAuth();
   const [statusDraft, setStatusDraft] = useState("");
+  const notificationSounds = useUiStore((state) => state.notificationSounds);
+  const setPreference = useUiStore((state) => state.setPreference);
 
   if (!me) return null;
 
@@ -123,6 +126,29 @@ export function UserBar({ onOpenSettings }: { onOpenSettings?: () => void }) {
               </button>
             </form>
           </div>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() =>
+              setPreference("notificationSounds", !notificationSounds)
+            }
+            onSelect={(event) => event.preventDefault()}
+          >
+            {notificationSounds ? (
+              <Volume2 className="size-4" />
+            ) : (
+              <VolumeX className="size-4" />
+            )}
+            Notification sounds
+            <Switch
+              checked={notificationSounds}
+              onCheckedChange={(checked) =>
+                setPreference("notificationSounds", checked)
+              }
+              onClick={(event) => event.stopPropagation()}
+              className="ml-auto"
+              aria-label="Notification sounds"
+            />
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={onOpenSettings}>
             <Settings className="size-4" /> User settings

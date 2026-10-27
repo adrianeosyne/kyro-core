@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "convex/react";
 import { Bell, Loader2, Menu, PanelRight, Search } from "@/components/icons";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { useMatch, useSearchParams } from "react-router";
 import { api } from "@/convex/_generated/api";
 import { ClaimUsername } from "@/components/app/ClaimUsername";
@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/use-auth";
 import { useUiStore } from "@/lib/store";
+import { playNotificationPing } from "@/lib/sound";
 
 /**
  * The application frame: community rail, channel sidebar and the routed
@@ -46,6 +47,23 @@ export function AppShell({ children }: { children: ReactNode }) {
     const interval = window.setInterval(tick, 20_000);
     return () => window.clearInterval(interval);
   }, [heartbeat]);
+
+  // Notification ping: fires when unread notifications arrive while the tab
+  // is in the background — gated by the "Notification sounds" menu toggle.
+  const prevUnread = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (unread === undefined) return;
+    const previous = prevUnread.current;
+    prevUnread.current = unread;
+    if (
+      previous !== undefined &&
+      unread > previous &&
+      document.hidden &&
+      useUiStore.getState().notificationSounds
+    ) {
+      playNotificationPing();
+    }
+  }, [unread]);
 
   // Global shortcuts: ⌘K opens search, Esc closes overlays.
   useEffect(() => {

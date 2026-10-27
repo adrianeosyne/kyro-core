@@ -1,10 +1,14 @@
 import { useMutation, useQuery } from "convex/react";
 import {
+  Compass,
+  Copy,
   Hash,
   Loader2,
+  Lock,
   LogOut,
   MessagesSquare,
   MicOff,
+  Pencil,
   Plus,
   Search,
   Settings,
@@ -20,6 +24,13 @@ import { UserAvatar } from "@/components/app/UserAvatar";
 import { UserBar } from "@/components/app/UserBar";
 import { CreateChannelDialog, InviteDialog } from "@/components/app/dialogs";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -67,9 +78,11 @@ function ServerSection({ serverId }: { serverId: string }) {
   const createCategory = useMutation(api.channels.createCategory);
   const leave = useMutation(api.servers.leave);
   const setMuted = useMutation(api.servers.setMuted);
+  const setLocked = useMutation(api.servers.setLocked);
   const navigate = useNavigate();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [nicknameOpen, setNicknameOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const activeChannel = useMatch("/dashboard/s/:serverId/c/:channelId");
 
@@ -77,6 +90,16 @@ function ServerSection({ serverId }: { serverId: string }) {
   const canManageChannels = permissions.includes(PERMISSIONS.MANAGE_CHANNELS);
   const canInvite = permissions.includes(PERMISSIONS.CREATE_INVITES);
   const canManageServer = permissions.includes(PERMISSIONS.MANAGE_SERVER);
+
+  /** Toast-wrapped async menu action. */
+  const run = async (action: Promise<unknown>, success?: string) => {
+    try {
+      await action;
+      if (success) toast.success(success);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "That didn't work — try again.");
+    }
+  };
 
   const groups = useMemo(() => {
     if (!listing) return [];
@@ -131,6 +154,44 @@ function ServerSection({ serverId }: { serverId: string }) {
                 <UserPlus className="size-4" /> Invite people
               </DropdownMenuItem>
             )}
+            {canManageChannels && (
+              <DropdownMenuItem onClick={() => setCreateOpen(true)}>
+                <Plus className="size-4" /> Create channel
+              </DropdownMenuItem>
+            )}
+            {canManageServer && (
+              <DropdownMenuItem
+                onClick={() =>
+                  void run(
+                    setLocked({
+                      serverId: serverId as Id<"servers">,
+                      locked: !server.locked,
+                    }),
+                    server.locked
+                      ? "Server unlocked — everyone can post again."
+                      : "Server locked — only staff can post now.",
+                  )
+                }
+              >
+                <Lock className="size-4" />
+                {server.locked ? "Unlock server" : "Lock server"}
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem
+              onClick={() => {
+                void navigator.clipboard
+                  .writeText(serverId)
+                  .then(() => toast.success("Server ID copied."))
+                  .catch(() =>
+                    toast.error("Clipboard access was blocked by the browser."),
+                  );
+              }}
+            >
+              <Copy className="size-4" /> Copy server ID
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setNicknameOpen(true)}>
+              <Pencil className="size-4" /> Change nickname
+            </DropdownMenuItem>
             {canManageChannels && (
               <DropdownMenuItem
                 onClick={async () => {
@@ -288,7 +349,99 @@ function ServerSection({ serverId }: { serverId: string }) {
         onOpenChange={setCreateOpen}
         categories={listing.categories}
       />
+      <NicknameDialog
+        serverId={serverId}
+        currentNickname={server.nickname ?? ""}
+        open={nicknameOpen}
+        onOpenChange={setNicknameOpen}
+      />
     </>
+  );
+}
+
+/** Rename yourself inside one community (staff can rename others elsewhere). */
+function NicknameDialog({
+  serverId,
+  currentNickname,
+  open,
+  onOpenChange,
+}: {
+  serverId: string;
+  currentNickname: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const me = useQuery(api.users.me);
+  const setNickname = useMutation(api.servers.setNickname);
+  const [draft, setDraft] = useState(currentNickname);
+  const [seeded, setSeeded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  if (open && !seeded) {
+    setSeeded(true);
+    setDraft(currentNickname);
+  }
+  if (!open && seeded) setSeeded(false);
+
+  const save = async () => {
+    if (!me || busy) return;
+    setBusy(true);
+    try {
+      await setNickname({
+        serverId: serverId as Id<"servers">,
+        userId: me.id as Id<"users">,
+        nickname: draft.trim() || undefined,
+      });
+      toast.success(draft.trim() ? "Nickname updated." : "Nickname cleared.");
+      onOpenChange(false);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not change nickname.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Change nickname</DialogTitle>
+          <DialogDescription>
+            How you appear in this community only. Leave empty to use your
+            display name.
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            void save();
+          }}
+          className="space-y-3"
+        >
+          <Input
+            autoFocus
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder="Nickname"
+            maxLength={64}
+          />
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button disabled={busy}>
+              {busy && <Loader2 className="mr-2 size-4 animate-spin" />}
+              Save
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -324,6 +477,7 @@ function HomeSection() {
   const me = useQuery(api.users.me);
   const [query, setQuery] = useState("");
   const friendsMatch = useMatch("/dashboard");
+  const discoverMatch = useMatch("/dashboard/discover");
 
   const pending = (social?.incoming.length ?? 0) + (social?.outgoing.length ?? 0);
   const filtered = (conversations ?? []).filter((conversation) => {
@@ -351,6 +505,19 @@ function HomeSection() {
             {pending}
           </span>
         )}
+      </Link>
+
+      <Link
+        to="/dashboard/discover"
+        className={cn(
+          "mb-1 flex items-center gap-2 rounded-md px-2 py-2 text-sm",
+          discoverMatch
+            ? "bg-sidebar-accent font-medium text-foreground"
+            : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
+        )}
+      >
+        <Compass className="size-4" />
+        Discover
       </Link>
 
       <div className="mt-5 mb-1 flex items-center justify-between px-2">

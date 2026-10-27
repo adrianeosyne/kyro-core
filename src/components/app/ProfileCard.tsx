@@ -3,6 +3,7 @@ import {
   Ban,
   Check,
   Clock,
+  Link2,
   MessageCircle,
   Settings,
   UserPlus,
@@ -222,6 +223,48 @@ export function ProfileCard() {
                 </div>
               )}
             </div>
+
+            {user.links.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Links
+                </p>
+                <div className="mt-1.5 space-y-1">
+                  {user.links.map((link) => (
+                    <a
+                      key={`${link.label}:${link.url}`}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 rounded-md border border-border/70 bg-surface px-2.5 py-1.5 text-xs transition-colors hover:border-primary/40"
+                    >
+                      <Link2 className="size-3.5 shrink-0 text-primary" />
+                      <span className="min-w-0 flex-1 truncate font-medium">
+                        {link.label}
+                      </span>
+                      <span className="max-w-32 shrink-0 truncate text-muted-foreground">
+                        {link.url.replace(/^https?:\/\//, "")}
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {user.memberSince != null && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Member since
+                </p>
+                <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Clock className="size-3.5" />
+                  {new Date(user.memberSince).toLocaleDateString(undefined, {
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </p>
+              </div>
+            )}
 
             {profile && profile.mutualServers.length > 0 && (
               <div>

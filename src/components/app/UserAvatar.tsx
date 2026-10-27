@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { seedColor, initials, type PresenceState } from "@/lib/format";
+import { findFrame } from "@/lib/frames";
 
 export interface AvatarUser {
   id: string;
@@ -8,6 +9,8 @@ export interface AvatarUser {
   avatarUrl?: string | null;
   bannerUrl?: string | null;
   presence?: PresenceState;
+  /** Built-in avatar frame id — rendered as a gradient ring when set. */
+  avatarFrame?: string | null;
 }
 
 const SIZES = {
@@ -74,30 +77,39 @@ export function UserAvatar({
     lg: "size-5 border-[3px]",
     xl: "size-7 border-4",
   }[size];
+  const frame = findFrame(user.avatarFrame);
 
   return (
     <span className={cn("relative inline-flex shrink-0", className)}>
       <span
         className={cn(
-          "flex items-center justify-center overflow-hidden rounded-full font-semibold text-white",
-          SIZES[size],
+          "inline-flex rounded-full",
+          frame && `bg-gradient-to-br ${frame.gradient} p-[2px]`,
         )}
-        style={
-          user.avatarUrl
-            ? undefined
-            : { background: seedColor(user.id || user.name || "kyro") }
-        }
+        title={frame ? `${frame.label} avatar frame` : undefined}
       >
-        {user.avatarUrl ? (
-          <img
-            src={user.avatarUrl}
-            alt=""
-            loading="lazy"
-            className="size-full object-cover"
-          />
-        ) : (
-          initials(user.name || user.username || "?")
-        )}
+        <span
+          className={cn(
+            "flex items-center justify-center overflow-hidden rounded-full font-semibold text-white",
+            SIZES[size],
+          )}
+          style={
+            user.avatarUrl
+              ? undefined
+              : { background: seedColor(user.id || user.name || "kyro") }
+          }
+        >
+          {user.avatarUrl ? (
+            <img
+              src={user.avatarUrl}
+              alt=""
+              loading="lazy"
+              className="size-full object-cover"
+            />
+          ) : (
+            initials(user.name || user.username || "?")
+          )}
+        </span>
       </span>
       {showStatus && (
         <span
