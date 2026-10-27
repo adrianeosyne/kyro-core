@@ -61,30 +61,39 @@ export function topGlobalBadge(
 }
 
 /**
- * Inline badge next to a name, styled exactly like the founder crown:
- * renders the user's *highest* badge only (founder → admin → moderator →
- * verified), falling back to nothing when they hold none.
+ * Inline badge next to a name, styled exactly like the founder crown.
+ * Shows the badge the user picked in Settings → Profile → Badge (when they
+ * hold it), else their highest one (founder → admin → moderator →
+ * verified). `primaryBadge="none"` hides inline badges everywhere — the
+ * profile card still shows the full shelf.
  */
 export function InlineBadge({
   badges,
+  primaryBadge,
   size = "size-3.5",
 }: {
   badges: readonly string[];
+  /** This user's chosen inline badge: a held badge id, "none", or unset. */
+  primaryBadge?: string | null;
   /** Matches CrownBadge's default inline size. */
   size?: string;
 }) {
-  const top = topGlobalBadge(badges);
-  if (!top) return null;
-  if (top === "founder") {
+  if (primaryBadge === "none") return null;
+  const chosen =
+    primaryBadge && primaryBadge !== "none" && badges.includes(primaryBadge)
+      ? (primaryBadge as GlobalBadgeKey)
+      : topGlobalBadge(badges);
+  if (!chosen) return null;
+  if (chosen === "founder") {
     return <CrownBadge variant="founder" label="Kyro founder" size={size} />;
   }
-  const label = GLOBAL_BADGE_META[top].label;
+  const label = GLOBAL_BADGE_META[chosen].label;
   return (
     <span
       title={label}
       className="inline-flex shrink-0 items-center align-middle"
     >
-      <GlobalBadgeIcon badge={top} className={size} />
+      <GlobalBadgeIcon badge={chosen} className={size} />
       <span className="sr-only">{label}</span>
     </span>
   );

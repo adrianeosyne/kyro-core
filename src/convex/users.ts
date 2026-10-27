@@ -10,6 +10,7 @@ import {
   requireUser,
   USERNAME_PATTERN,
 } from "./lib";
+import { PROFILE_THEME_IDS } from "../lib/profileThemes";
 
 /**
  * Get the current signed in user. Returns null if the user is not signed in.
@@ -28,6 +29,9 @@ export const currentUser = query({
 /** Users can change their handle once every hour. */
 const USERNAME_COOLDOWN_MS = 60 * 60 * 1000;
 
+/** Inline badge choices in the profile editor: a held badge, or none. */
+const PROFILE_BADGES = ["none", "founder", "admin", "moderator", "verified"];
+
 /**
  * Full profile for the signed-in account, with the avatar resolved to a
  * signed URL. This is what the app renders in the user panel and settings.
@@ -43,6 +47,7 @@ export const me = query({
       dmPolicy: user.dmPolicy ?? ("everyone" as const),
       allowFriendRequests: user.allowFriendRequests !== false,
       showPresence: user.showPresence !== false,
+      suggestible: user.suggestible !== false,
       createdAt: user.createdAt ?? null,
       role: user.role ?? null,
       hasUsername: Boolean(user.username),
@@ -107,6 +112,10 @@ export const updateProfile = mutation({
       ),
     ),
     avatarFrame: v.optional(v.union(v.string(), v.null())),
+    pronouns: v.optional(v.string()),
+    primaryBadge: v.optional(v.string()),
+    profileTheme: v.optional(v.string()),
+    wornTag: v.optional(v.union(v.string(), v.null())),
     status: v.optional(v.union(
       v.literal("online"),
       v.literal("idle"),
@@ -179,6 +188,60 @@ export const updateProfile = mutation({
         args.avatarFrame && knownFrames.includes(args.avatarFrame)
           ? args.avatarFrame
           : undefined;
+    }
+    if (args.pronouns !== undefined) {
+      patch.pronouns = args.pronouns.trim().slice(0, 32);
+    }
+    if (args.primaryBadge !== undefined) {
+      if (!PROFILE_BADGES.includes(args.primaryBadge)) {
+        throw new Error("That badge doesn't exist.");
+      }
+      if (args.primaryBadge !== "none") {
+        // Mirror hydrateUser's badge derivation: you can only wear one you hold.
+        const isFounder =
+          (user.username ?? "").toLowerCase() === FOUNDER_USERNAME;
+        const held = new Set<string>();
+        if (isFounder) held.add("founder");
+        if (user.role === "admin" || isFounder) held.add("admin");
+        if (user.siteModerator === true) held.add("moderator");
+        if (user.verified === true) held.add("verified");
+        if (!held.has(args.primaryBadge)) {
+          throw new Error("You don't hold that badge.");
+        }
+      }
+      patch.primaryBadge = args.primaryBadge;
+    }
+    if (args.profileTheme !== undefined) {
+      patch.profileTheme =
+        args.profileTheme && PROFILE_THEME_IDS.includes(args.profileTheme)
+          ? args.profileTheme
+          : undefined;
+    }
+    if (args.wornTag !== undefined) {
+      if (!args.wornTag) {
+        patch.wornTag = undefined;
+      } else {
+        const tag = args.wornTag.trim().toUpperCase().slice(0, 4);
+        if (!/^[A-Z0-9]{2,4}$/.test(tag)) {
+          throw new Error("Community tags are 2–4 letters or numbers.");
+        }
+        const memberships = await ctx.db
+          .query("serverMembers")
+          .withIndex("by_user", (q) => q.eq("userId", id))
+          .collect();
+        let allowed = false;
+        for (const membership of memberships) {
+          const memberServer = await ctx.db.get(membership.serverId);
+          if (memberServer?.tag === tag) {
+            allowed = true;
+            break;
+          }
+        }
+        if (!allowed) {
+          throw new Error("Pick a tag from one of your own communities.");
+        }
+        patch.wornTag = tag;
+      }
     }
     await ctx.db.patch(id, patch);
   },
@@ -255,6 +318,7 @@ export const updatePrivacy = mutation({
     ),
     allowFriendRequests: v.optional(v.boolean()),
     showPresence: v.optional(v.boolean()),
+    suggestible: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { id } = await requireUser(ctx);
@@ -682,11 +746,19 @@ export const suggest = query({
     ]);
     for (const blocked of exclude) candidateIds.delete(blocked);
 
-    const users = await hydrateUsers(
-      ctx,
-      [...candidateIds].slice(0, 80) as Id<"users">[],
-      id,
+    // People can opt out of suggestions entirely; respect that before hydrating.
+    const candidateDocs = await Promise.all(
+      [...candidateIds]
+        .slice(0, 80)
+        .map((candidateId) => ctx.db.get(candidateId as Id<"users">)),
     );
+    const visibleIds = candidateDocs
+      .filter(
+        (doc): doc is Doc<"users"> =>
+          doc !== null && doc.suggestible !== false,
+      )
+      .map((doc) => doc._id);
+    const users = await hydrateUsers(ctx, visibleIds, id);
     return [...users.values()]
       .slice(0, 60)
       .sort((a, b) => {

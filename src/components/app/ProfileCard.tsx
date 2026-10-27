@@ -23,6 +23,8 @@ import {
   InlineBadge,
 } from "@/components/app/GlobalBadges";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { findProfileTheme } from "@/lib/profileThemes";
 import {
   Dialog,
   DialogContent,
@@ -61,6 +63,8 @@ export function ProfileCard() {
   const unblock = useMutation(api.social.unblock);
   const createDirect = useMutation(api.conversations.createDirect);
   const setBadges = useMutation(api.users.setBadges);
+  const warn = useMutation(api.warnings.warn);
+  const [warnReason, setWarnReason] = useState("");
 
   const close = (open: boolean) => {
     if (open) return;
@@ -116,6 +120,7 @@ export function ProfileCard() {
   const presenceMeta = user
     ? PRESENCE_META[(user.presence as keyof typeof PRESENCE_META) ?? "offline"]
     : null;
+  const profileTheme = findProfileTheme(user?.profileTheme);
 
   return (
     <Dialog open onOpenChange={close}>
@@ -128,10 +133,19 @@ export function ProfileCard() {
                 <div className="min-w-0">
                   <p className="flex items-center gap-1.5 truncate font-semibold">
                     {user.name}
-                    <InlineBadge badges={user.badges} />
+                    <InlineBadge
+                      badges={user.badges}
+                      primaryBadge={user.primaryBadge}
+                    />
+                    {user.serverTag && (
+                      <span className="shrink-0 rounded border border-border/70 px-1 py-px text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        {user.serverTag}
+                      </span>
+                    )}
                   </p>
                   <p className="truncate text-sm text-muted-foreground">
                     {user.username ? `@${user.username}` : "no username yet"}
+                    {user.pronouns ? ` · ${user.pronouns}` : ""}
                   </p>
                 </div>
               </>
@@ -156,7 +170,7 @@ export function ProfileCard() {
 
         {user && (
           <div className="space-y-3">
-            {user.bannerUrl && (
+            {user.bannerUrl ? (
               <div className="h-24 overflow-hidden rounded-lg border border-border/70 bg-gradient-to-br from-brand to-cyan">
                 <img
                   src={user.bannerUrl}
@@ -164,7 +178,12 @@ export function ProfileCard() {
                   className="size-full object-cover"
                 />
               </div>
-            )}
+            ) : profileTheme ? (
+              <div
+                aria-hidden="true"
+                className={`h-24 rounded-lg border border-border/70 bg-gradient-to-br ${profileTheme.gradient}`}
+              />
+            ) : null}
             {user.bio && (
               <p className="rounded-md border border-border/70 bg-surface p-3 text-sm">
                 {user.bio}
@@ -217,6 +236,32 @@ export function ProfileCard() {
                         </button>
                       );
                     })}
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <Input
+                      value={warnReason}
+                      onChange={(event) => setWarnReason(event.target.value)}
+                      placeholder="Warning reason…"
+                      maxLength={300}
+                      className="h-8 flex-1 text-xs"
+                      aria-label="Warning reason"
+                    />
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={busy || warnReason.trim().length < 3}
+                      onClick={() => {
+                        void run(
+                          warn({
+                            userId: userId as Id<"users">,
+                            reason: warnReason.trim(),
+                          }).then(() => setWarnReason("")),
+                          "Warning issued — it counts for 3 days.",
+                        );
+                      }}
+                    >
+                      Warn
+                    </Button>
                   </div>
                 </div>
               )}

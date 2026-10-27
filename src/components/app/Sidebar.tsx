@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from "convex/react";
 import {
+  BookOpen,
   Compass,
   Copy,
   Hash,
@@ -307,7 +308,11 @@ function ServerSection({ serverId }: { serverId: string }) {
                         : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
                     )}
                   >
-                    <Hash className="size-4 shrink-0 opacity-70" />
+                    {channel.isRules ? (
+                      <BookOpen className="size-4 shrink-0 opacity-70" />
+                    ) : (
+                      <Hash className="size-4 shrink-0 opacity-70" />
+                    )}
                     <span
                       className={cn(
                         "truncate",

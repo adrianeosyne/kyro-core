@@ -36,6 +36,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useUiStore } from "@/lib/store";
 import { CreateCommunityDialog, InviteDialog } from "@/components/app/dialogs";
 
 function RailButton({
@@ -119,10 +120,18 @@ export function ServerRail({ activeServerId }: { activeServerId?: string }) {
   const [inviteServerId, setInviteServerId] = useState<string | null>(null);
   const setMuted = useMutation(api.servers.setMuted);
   const markServerRead = useMutation(api.messages.markServerRead);
+  const conversations = useQuery(api.conversations.list);
+  const me = useQuery(api.users.me);
+  const unreadDmBubbles = useUiStore((state) => state.unreadDmBubbles);
 
   const menuServer = (servers ?? []).find(
     (server) => server.id === menuServerId,
   );
+
+  /** Unread DM bubbles under Home — the "Unread DMs in the server list" pref. */
+  const bubbleDms = (unreadDmBubbles ? (conversations ?? []) : [])
+    .filter((conversation) => conversation.unread)
+    .slice(0, 3);
 
   const run = async (action: Promise<unknown>, success?: string) => {
     try {
@@ -150,6 +159,43 @@ export function ServerRail({ activeServerId }: { activeServerId?: string }) {
         </RailButton>
 
         <span className="my-1 h-px w-8 bg-border" />
+
+        {bubbleDms.map((conversation) => {
+          const other =
+            conversation.participants.find(
+              (participant) => participant.id !== me?.id,
+            ) ?? conversation.participants[0];
+          if (!other) return null;
+          return (
+            <button
+              key={conversation.id}
+              type="button"
+              onClick={() => navigate(`/dashboard/dm/${conversation.id}`)}
+              className="relative flex size-9 items-center justify-center self-center overflow-hidden rounded-full border border-border/60 bg-surface transition-transform hover:scale-105"
+              title={conversation.name ?? other.name}
+            >
+              {other.avatarUrl ? (
+                <img
+                  src={other.avatarUrl}
+                  alt=""
+                  className="size-full object-cover"
+                />
+              ) : (
+                <span className="text-xs font-bold">
+                  {other.name.slice(0, 1).toUpperCase()}
+                </span>
+              )}
+              <span
+                aria-hidden="true"
+                className={`absolute bottom-0.5 right-0.5 size-2.5 rounded-full border-2 border-rail ${
+                  other.presence !== "offline"
+                    ? "bg-success"
+                    : "bg-muted-foreground/50"
+                }`}
+              />
+            </button>
+          );
+        })}
 
         {servers === undefined ? (
           <Loader2 className="size-5 animate-spin text-muted-foreground" />

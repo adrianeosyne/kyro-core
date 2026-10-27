@@ -72,10 +72,18 @@ export function UserBar({ onOpenSettings }: { onOpenSettings?: () => void }) {
                   {me.name}
                 </span>
                 {me.badges.length > 0 ? (
-                  <InlineBadge badges={me.badges} />
+                  <InlineBadge
+                    badges={me.badges}
+                    primaryBadge={me.primaryBadge}
+                  />
                 ) : ownsServer ? (
                   <CrownBadge label="Server owner" />
                 ) : null}
+                {me.serverTag && (
+                  <span className="shrink-0 rounded border border-border/70 px-1 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+                    {me.serverTag}
+                  </span>
+                )}
               </span>
               <span className="block truncate text-xs leading-tight text-muted-foreground">
                 {me.customStatus || `@${me.username ?? "new"}`}

@@ -161,8 +161,10 @@ export const resolve = mutation({
       v.literal("dismissed"),
     ),
     resolution: v.optional(v.string()),
+    /** Admins can attach a platform warning (counts 3 days) while resolving. */
+    warn: v.optional(v.boolean()),
   },
-  handler: async (ctx, { reportId, status, resolution }) => {
+  handler: async (ctx, { reportId, status, resolution, warn }) => {
     const { id, user } = await requireUser(ctx);
     const report = await ctx.db.get(reportId);
     if (!report) throw new Error("That report no longer exists.");
@@ -180,6 +182,36 @@ export const resolve = mutation({
       resolution: resolution?.trim().slice(0, 500),
       updatedAt: Date.now(),
     });
+    if (warn) {
+      if (user.role !== "admin") {
+        throw new Error("Only Kyro admins can issue warnings.");
+      }
+      let targetId = report.reportedUserId;
+      if (!targetId && report.messageId) {
+        const message = await ctx.db.get(report.messageId);
+        targetId = message?.authorId;
+      }
+      if (!targetId) {
+        throw new Error("There's no account to warn on this report.");
+      }
+      if (targetId !== id) {
+        const now = Date.now();
+        await ctx.db.insert("warnings", {
+          userId: targetId,
+          issuedById: id,
+          reason: resolution?.trim().slice(0, 300) || "Broke a Kyro rule.",
+          createdAt: now,
+          expiresAt: now + 3 * 24 * 60 * 60 * 1000,
+        });
+        await notify(ctx, {
+          userId: targetId,
+          type: "moderation",
+          title: "You received a warning from Kyro staff",
+          body: resolution?.slice(0, 200),
+          actorId: id,
+        });
+      }
+    }
     await notify(ctx, {
       userId: report.reporterId,
       type: "moderation",

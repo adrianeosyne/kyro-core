@@ -80,6 +80,14 @@ export const Home = (props: IconProps) => (
   </Icon>
 );
 
+/** Open book — marks a community's rules channel. */
+export const BookOpen = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M12 6.5C10.5 5 8.4 4.5 6 4.5H3.5v13H6c2.4 0 4.5.5 6 2 1.5-1.5 3.6-2 6-2h2.5v-13H18c-2.4 0-4.5.5-6 2Z" />
+    <path d="M12 6.5v13" />
+  </Icon>
+);
+
 export const Compass = (props: IconProps) => (
   <Icon {...props}>
     <circle cx="12" cy="12" r="8.5" />

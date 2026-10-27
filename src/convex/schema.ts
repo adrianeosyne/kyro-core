@@ -76,6 +76,16 @@ const schema = defineSchema(
       ),
       /** Built-in avatar frame id from the profile editor. */
       avatarFrame: v.optional(v.string()),
+      /** Pronouns shown on the profile card, e.g. "He/Him". */
+      pronouns: v.optional(v.string()),
+      /** Which badge shows next to the name in chat; `"none"` hides them. */
+      primaryBadge: v.optional(v.string()),
+      /** Profile theme preset id from the profile editor. */
+      profileTheme: v.optional(v.string()),
+      /** Opt-out of appearing on other people's Suggested friends tab. */
+      suggestible: v.optional(v.boolean()),
+      /** Community tag the user wears next to their name (2–4 chars). */
+      wornTag: v.optional(v.string()),
     })
       .index("email", ["email"]) // index for the email. do not remove or modify
       .index("by_username", ["username"]),
@@ -144,6 +154,30 @@ const schema = defineSchema(
       vanityCode: v.optional(v.string()),
       /** Server-wide lockdown: only staff with manage_messages can post. */
       locked: v.optional(v.boolean()),
+      /** Auto-unlock timestamp for timed raid locks. */
+      lockedUntil: v.optional(v.number()),
+      /** 2–4 char community tag members can wear next to their name. */
+      tag: v.optional(v.string()),
+      /** Links shown on the community profile and Discovery card. */
+      links: v.optional(
+        v.array(v.object({ label: v.string(), url: v.string() })),
+      ),
+      /** Account age required before members can talk here. */
+      verificationLevel: v.optional(
+        v.union(
+          v.literal("none"),
+          v.literal("low"),
+          v.literal("medium"),
+          v.literal("high"),
+        ),
+      ),
+      /** New-account gate at join time in ms (0 = off, 1 day, 7 days). */
+      minAccountAgeMs: v.optional(v.number()),
+      /** Channel holding the rules: only staff post there. */
+      rulesChannelId: v.optional(v.id("channels")),
+      /** Community theme colours, shown to viewers with server colours on. */
+      themeAccent: v.optional(v.string()),
+      themeTint: v.optional(v.string()),
       createdAt: v.number(),
       updatedAt: v.optional(v.number()),
     })
@@ -340,6 +374,35 @@ const schema = defineSchema(
     })
       .index("by_key", ["key"])
       .index("by_expires", ["expiresAt"]),
+
+    /** Staff warnings against an account; they expire after 3 days. */
+    warnings: defineTable({
+      userId: v.id("users"),
+      issuedById: v.id("users"),
+      reason: v.string(),
+      createdAt: v.number(),
+      expiresAt: v.number(),
+    })
+      .index("by_user", ["userId"])
+      .index("by_user_expiry", ["userId", "expiresAt"]),
+
+    /** Bug reports filed from Settings → My Account → Bug hunting. */
+    bugReports: defineTable({
+      reporterId: v.id("users"),
+      title: v.string(),
+      details: v.optional(v.string()),
+      status: v.union(
+        v.literal("open"),
+        v.literal("acknowledged"),
+        v.literal("fixed"),
+        v.literal("not_a_bug"),
+      ),
+      staffNote: v.optional(v.string()),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+    })
+      .index("by_reporter", ["reporterId"])
+      .index("by_status", ["status"]),
   },
   {
     schemaValidation: false,

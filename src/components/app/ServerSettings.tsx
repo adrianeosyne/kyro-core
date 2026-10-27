@@ -8,6 +8,7 @@ import {
   ChevronUp,
   Copy,
   GripVertical,
+  Hash,
   Loader2,
   Pencil,
   Plus,
@@ -15,6 +16,14 @@ import {
   User,
   X,
 } from "@/components/icons";
+import { UserAvatar } from "@/components/app/UserAvatar";
+import { CrownBadge } from "@/components/app/CrownBadge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -34,7 +43,17 @@ import {
 import { MAX_UPLOAD_BYTES, useUploadFile } from "@/lib/upload";
 import { cn } from "@/lib/utils";
 
-type TabId = "overview" | "roles" | "invites" | "bans" | "audit" | "danger";
+type TabId =
+  | "overview"
+  | "theme"
+  | "channels"
+  | "roles"
+  | "members"
+  | "invites"
+  | "bans"
+  | "reports"
+  | "audit"
+  | "danger";
 
 /**
  * Server settings (`/dashboard/s/:id/settings/*`). Every tab hits the real
@@ -48,7 +67,11 @@ export function ServerSettings({ serverId }: { serverId: string }) {
   const update = useMutation(api.servers.update);
   const remove = useMutation(api.servers.remove);
   const setVanity = useMutation(api.servers.setVanity);
+  const setLocked = useMutation(api.servers.setLocked);
   const navigate = useNavigate();
+  const channels = useQuery(api.channels.list, {
+    serverId: serverId as Id<"servers">,
+  });
   const upload = useUploadFile();
 
   const [tab, setTab] = useState<TabId>("overview");
@@ -66,6 +89,11 @@ export function ServerSettings({ serverId }: { serverId: string }) {
   const [tagDraft, setTagDraft] = useState("");
   const [vanityDraft, setVanityDraft] = useState("");
   const [vanityBusy, setVanityBusy] = useState(false);
+  const [serverTagDraft, setServerTagDraft] = useState("");
+  const [linksDraft, setLinksDraft] = useState<
+    { label: string; url: string }[]
+  >([]);
+  const [linksBusy, setLinksBusy] = useState(false);
 
   // Seed the form whenever the query resolves or the server changes. Done
   // during render (React's supported "adjust state on prop change" pattern)
@@ -85,6 +113,8 @@ export function ServerSettings({ serverId }: { serverId: string }) {
       tags: [...server.tags],
     });
     setVanityDraft(server.vanityCode ?? "");
+    setServerTagDraft(server.tag ?? "");
+    setLinksDraft(server.links);
   }
 
   if (server === undefined) {
@@ -98,6 +128,10 @@ export function ServerSettings({ serverId }: { serverId: string }) {
   const canManage = hasPermission(server.permissions, PERMISSIONS.MANAGE_SERVER);
   const canRoles = hasPermission(server.permissions, PERMISSIONS.MANAGE_ROLES);
   const canBans = hasPermission(server.permissions, PERMISSIONS.BAN_MEMBERS);
+  const canChannels = hasPermission(
+    server.permissions,
+    PERMISSIONS.MANAGE_CHANNELS,
+  );
   const canInvites = hasPermission(
     server.permissions,
     PERMISSIONS.CREATE_INVITES,
@@ -109,9 +143,13 @@ export function ServerSettings({ serverId }: { serverId: string }) {
 
   const TABS: { id: TabId; label: string; show: boolean }[] = [
     { id: "overview", label: "Overview", show: canManage },
+    { id: "theme", label: "Theme", show: canManage },
+    { id: "channels", label: "Channels", show: canChannels },
     { id: "roles", label: "Roles", show: canRoles },
+    { id: "members", label: "Members", show: canRoles || canBans },
     { id: "invites", label: "Invites", show: canInvites },
     { id: "bans", label: "Bans", show: canBans },
+    { id: "reports", label: "Reports", show: canBans || canManage },
     { id: "audit", label: "Audit log", show: canAudit },
     { id: "danger", label: "Danger zone", show: server.isOwner },
   ];
@@ -203,6 +241,94 @@ export function ServerSettings({ serverId }: { serverId: string }) {
       );
     } finally {
       setVanityBusy(false);
+    }
+  };
+
+  const saveTag = async (override?: string) => {
+    const tag = (override ?? serverTagDraft).trim();
+    try {
+      await update({
+        serverId: serverId as Id<"servers">,
+        tag: tag || null,
+      });
+      toast.success(tag ? "Server tag saved." : "Server tag removed.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not save that tag.",
+      );
+    }
+  };
+
+  const saveLinks = async () => {
+    if (linksBusy) return;
+    const rows = linksDraft
+      .filter((link) => link.label.trim() && link.url.trim())
+      .map((link) => {
+        const url = link.url.trim();
+        return {
+          label: link.label.trim(),
+          url: /^https?:\/\//i.test(url) ? url : `https://${url}`,
+        };
+      });
+    setLinksBusy(true);
+    try {
+      await update({
+        serverId: serverId as Id<"servers">,
+        links: rows,
+      });
+      toast.success("Links saved.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not save links.",
+      );
+    } finally {
+      setLinksBusy(false);
+    }
+  };
+
+  const lockFor = async (durationMs?: number) => {
+    try {
+      await setLocked({
+        serverId: serverId as Id<"servers">,
+        locked: true,
+        durationMs,
+      });
+      toast.success(
+        durationMs ? "Community locked." : "Locked until you unlock it.",
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not lock the community.",
+      );
+    }
+  };
+
+  const unlockNow = async () => {
+    try {
+      await setLocked({ serverId: serverId as Id<"servers">, locked: false });
+      toast.success("Community unlocked.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not unlock the community.",
+      );
+    }
+  };
+
+  const updateServer = async (
+    patch: {
+      verificationLevel?: "none" | "low" | "medium" | "high";
+      minAccountAgeMs?: number | null;
+      rulesChannelId?: Id<"channels"> | null;
+    },
+    success: string,
+  ) => {
+    try {
+      await update({ serverId: serverId as Id<"servers">, ...patch });
+      toast.success(success);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not save that.",
+      );
     }
   };
 
@@ -529,6 +655,237 @@ export function ServerSettings({ serverId }: { serverId: string }) {
                 )}
               </div>
             </div>
+            <h2 className="mt-7 text-sm font-semibold">Server tag</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              2 to 4 letters or numbers. Members can wear it next to their name
+              everywhere on Kyro (Settings → Profile).
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs font-bold uppercase tracking-wider">
+                {server.tag ?? "—"}
+              </span>
+              <Input
+                value={serverTagDraft}
+                onChange={(event) =>
+                  setServerTagDraft(event.target.value.toUpperCase())
+                }
+                placeholder="HTML"
+                maxLength={4}
+                className="h-9 w-32"
+                aria-label="Server tag"
+              />
+              <Button
+                size="sm"
+                disabled={
+                  serverTagDraft.trim().length < 2 ||
+                  serverTagDraft === (server.tag ?? "")
+                }
+                onClick={() => void saveTag()}
+              >
+                Save
+              </Button>
+              {server.tag && (
+                <Button size="sm" variant="ghost" onClick={() => void saveTag("")}>
+                  Remove
+                </Button>
+              )}
+            </div>
+
+            <h2 className="mt-7 text-sm font-semibold">Links</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Shown on your community profile and Discovery card — up to 5.
+            </p>
+            <div className="mt-3 space-y-2">
+              {linksDraft.map((link, index) => (
+                <div key={index} className="flex gap-2">
+                  <Input
+                    value={link.label}
+                    placeholder="Label (e.g. Website)"
+                    maxLength={32}
+                    className="w-40 flex-none"
+                    onChange={(event) => {
+                      const next = [...linksDraft];
+                      next[index] = { ...next[index], label: event.target.value };
+                      setLinksDraft(next);
+                    }}
+                  />
+                  <Input
+                    value={link.url}
+                    placeholder="https://…"
+                    maxLength={200}
+                    className="flex-1"
+                    onChange={(event) => {
+                      const next = [...linksDraft];
+                      next[index] = { ...next[index], url: event.target.value };
+                      setLinksDraft(next);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    aria-label={`Remove link ${index + 1}`}
+                    className="rounded-md border border-border/70 px-2 text-muted-foreground hover:text-destructive"
+                    onClick={() =>
+                      setLinksDraft(linksDraft.filter((_, i) => i !== index))
+                    }
+                  >
+                    <X className="size-4" />
+                  </button>
+                </div>
+              ))}
+              <div className="flex items-center justify-between gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={linksDraft.length >= 5}
+                  onClick={() =>
+                    setLinksDraft([...linksDraft, { label: "", url: "" }])
+                  }
+                >
+                  <Plus className="mr-1.5 size-4" /> Add link
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={linksBusy}
+                  onClick={() => void saveLinks()}
+                >
+                  {linksBusy && <Loader2 className="mr-1.5 size-4 animate-spin" />}
+                  Save links
+                </Button>
+              </div>
+            </div>
+
+            <h2 className="mt-7 text-sm font-semibold">Raid protection</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Locked: nobody new can join and only people who can manage
+              messages can post. Pick a timed lock, or lock it until you open
+              it again.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={() => void lockFor(15 * 60 * 1000)}>
+                Lock for 15 min
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => void lockFor(60 * 60 * 1000)}>
+                Lock for 1 hour
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => void lockFor(24 * 60 * 60 * 1000)}>
+                Lock for a day
+              </Button>
+              <Button size="sm" onClick={() => void lockFor()}>
+                Lock until unlocked
+              </Button>
+              {server.locked && (
+                <Button size="sm" variant="outline" onClick={() => void unlockNow()}>
+                  Unlock now
+                </Button>
+              )}
+            </div>
+            {server.locked && (
+              <p className="mt-2 text-xs text-warning">
+                Currently locked
+                {server.lockedUntil && server.lockedUntil > Date.now()
+                  ? ` — unlocks ${new Date(server.lockedUntil).toLocaleString()}.`
+                  : " until you unlock it."}
+              </p>
+            )}
+
+            <h2 className="mt-7 text-sm font-semibold">Verification level</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              What people need before they can talk here. The owner, staff and
+              people with roles skip it.
+            </p>
+            <select
+              value={server.verificationLevel}
+              aria-label="Verification level"
+              className="mt-3 rounded-md border border-input bg-background px-3 py-2 text-sm"
+              onChange={(event) =>
+                void updateServer(
+                  {
+                    verificationLevel: event.target.value as
+                      | "none"
+                      | "low"
+                      | "medium"
+                      | "high",
+                  },
+                  "Verification level updated.",
+                )
+              }
+            >
+              <option value="none">None</option>
+              <option value="low">Low — 5 minute old accounts</option>
+              <option value="medium">Medium — 1 hour old accounts</option>
+              <option value="high">High — 1 day old accounts</option>
+            </select>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {server.verificationLevel === "low"
+                ? "Accounts need to be at least 5 minutes old."
+                : server.verificationLevel === "medium"
+                  ? "Accounts need to be at least 1 hour old."
+                  : server.verificationLevel === "high"
+                    ? "Accounts need to be at least 1 day old."
+                    : "Anyone in the community can talk right away."}
+            </p>
+
+            <h2 className="mt-7 text-sm font-semibold">New accounts</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Stops raids from freshly made accounts. Only accounts older than
+              the gate can join; existing members are never re-checked.
+            </p>
+            <select
+              value={
+                server.minAccountAgeMs === 604800000
+                  ? "7d"
+                  : server.minAccountAgeMs === 86400000
+                    ? "1d"
+                    : "off"
+              }
+              aria-label="New accounts"
+              className="mt-3 rounded-md border border-input bg-background px-3 py-2 text-sm"
+              onChange={(event) => {
+                const value =
+                  event.target.value === "7d"
+                    ? 604800000
+                    : event.target.value === "1d"
+                      ? 86400000
+                      : 0;
+                void updateServer(
+                  { minAccountAgeMs: value },
+                  "New-account gate updated.",
+                );
+              }}
+            >
+              <option value="off">Off</option>
+              <option value="1d">1 day</option>
+              <option value="7d">7 days</option>
+            </select>
+
+            <h2 className="mt-7 text-sm font-semibold">Rules channel</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Gets a book icon, only people who can manage the server can post
+              in it, and new members know where to start.
+            </p>
+            <select
+              value={server.rulesChannelId ?? ""}
+              aria-label="Rules channel"
+              className="mt-3 w-full max-w-sm rounded-md border border-input bg-background px-3 py-2 text-sm"
+              onChange={(event) =>
+                void updateServer(
+                  {
+                    rulesChannelId: (event.target.value || null) as
+                      | Id<"channels">
+                      | null,
+                  },
+                  "Rules channel updated.",
+                )
+              }
+            >
+              <option value="">No rules channel</option>
+              {(channels?.channels ?? []).map((channel) => (
+                <option key={channel.id} value={channel.id}>
+                  #{channel.name}
+                </option>
+              ))}
+            </select>
+
             <div className="mt-4 flex justify-end">
               <Button onClick={() => void save()} disabled={saving}>
                 {saving && <Loader2 className="mr-2 size-4 animate-spin" />}
@@ -558,6 +915,24 @@ export function ServerSettings({ serverId }: { serverId: string }) {
             </div>
           </section>
         )}
+
+        {activeTab === "channels" && (
+          <ChannelsTab serverId={serverId} canManage={canChannels} />
+        )}
+
+        {activeTab === "theme" && canManage && (
+          <ThemeTab
+            serverId={serverId}
+            initialAccent={server.themeAccent}
+            initialTint={server.themeTint}
+          />
+        )}
+
+        {activeTab === "members" && (
+          <MembersTab serverId={serverId} canRoles={canRoles} canBans={canBans} />
+        )}
+
+        {activeTab === "reports" && <ReportsTab />}
 
         {activeTab === "bans" && <BansTab serverId={serverId} />}
 
@@ -1230,6 +1605,851 @@ function AuditTab({ serverId }: { serverId: string }) {
                 {new Date(entry.createdAt).toLocaleString()}
               </p>
             </div>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Channels — order and categories, exactly like the sidebar.          */
+/* ------------------------------------------------------------------ */
+
+function ChannelsTab({
+  serverId,
+  canManage,
+}: {
+  serverId: string;
+  canManage: boolean;
+}) {
+  const channels = useQuery(api.channels.list, {
+    serverId: serverId as Id<"servers">,
+  });
+  const reorder = useMutation(api.channels.reorder);
+  const createCategory = useMutation(api.channels.createCategory);
+  const [newCategory, setNewCategory] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
+
+  const run = async (action: Promise<unknown>, success?: string) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await action;
+      if (success) toast.success(success);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "That didn't work.");
+    } finally {
+      setBusy(false);
+      setDragIndex(null);
+      setOverIndex(null);
+    }
+  };
+
+  if (!canManage) {
+    return (
+      <section className="mt-6 rounded-lg border border-border/60 bg-panel p-5 text-sm text-muted-foreground">
+        You don't have permission to manage channels.
+      </section>
+    );
+  }
+  if (!channels) {
+    return (
+      <section className="mt-6 rounded-lg border border-border/60 bg-panel p-5 text-sm text-muted-foreground">
+        Loading channels…
+      </section>
+    );
+  }
+
+  const uncategorised = channels.channels
+    .filter((channel) => !channel.categoryId)
+    .sort((a, b) => a.position - b.position);
+  const groups = channels.categories.map((category) => ({
+    category,
+    channels: channels.channels
+      .filter((channel) => channel.categoryId === category.id)
+      .sort((a, b) => a.position - b.position),
+  }));
+  const flat = [
+    ...uncategorised,
+    ...groups.flatMap((group) => group.channels),
+  ];
+
+  const saveOrder = async (next: typeof flat) =>
+    run(
+      reorder({
+        serverId: serverId as Id<"servers">,
+        categories: [],
+        channels: next.map((channel, position) => ({
+          id: channel.id as Id<"channels">,
+          position,
+          categoryId:
+            (channel.categoryId as Id<"categories"> | null) ?? null,
+        })),
+      }),
+      "Channel order saved.",
+    );
+
+  const move = async (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= flat.length) return;
+    const next = [...flat];
+    const [moved] = next.splice(index, 1);
+    next.splice(target, 0, moved);
+    await saveOrder(next);
+  };
+
+  const drop = async (target: number) => {
+    const source = dragIndex;
+    setDragIndex(null);
+    setOverIndex(null);
+    if (source === null || source === target) return;
+    const next = [...flat];
+    const [moved] = next.splice(source, 1);
+    next.splice(target, 0, moved);
+    await saveOrder(next);
+  };
+
+  type Row =
+    | { kind: "category"; id: string; name: string }
+    | { kind: "channel"; channel: (typeof flat)[number]; index: number };
+  const rows: Row[] = [];
+  for (const channel of uncategorised) {
+    rows.push({ kind: "channel", channel, index: flat.indexOf(channel) });
+  }
+  for (const group of groups) {
+    rows.push({
+      kind: "category",
+      id: group.category.id,
+      name: group.category.name,
+    });
+    for (const channel of group.channels) {
+      rows.push({ kind: "channel", channel, index: flat.indexOf(channel) });
+    }
+  }
+
+  return (
+    <section className="mt-6 rounded-lg border border-border/60 bg-panel p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold">Channels</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Drag channels to change the order people see.
+          </p>
+        </div>
+        <Button onClick={() => setCreating((value) => !value)}>
+          Create Category
+        </Button>
+      </div>
+
+      {channels.categories.length === 0 && !creating && (
+        <p className="mt-2 text-sm text-muted-foreground">No categories yet.</p>
+      )}
+
+      {creating && (
+        <div className="mt-3 flex gap-2">
+          <Input
+            autoFocus
+            value={newCategory}
+            onChange={(event) => setNewCategory(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && newCategory.trim().length >= 2) {
+                event.preventDefault();
+                void run(
+                  createCategory({
+                    serverId: serverId as Id<"servers">,
+                    name: newCategory.trim(),
+                  }).then(() => {
+                    setNewCategory("");
+                    setCreating(false);
+                  }),
+                  "Category created.",
+                );
+              }
+            }}
+            placeholder="Category name"
+            maxLength={60}
+            className="flex-1"
+            aria-label="Category name"
+          />
+          <Button
+            disabled={busy || newCategory.trim().length < 2}
+            onClick={() =>
+              void run(
+                createCategory({
+                  serverId: serverId as Id<"servers">,
+                  name: newCategory.trim(),
+                }).then(() => {
+                  setNewCategory("");
+                  setCreating(false);
+                }),
+                "Category created.",
+              )
+            }
+          >
+            Create
+          </Button>
+        </div>
+      )}
+
+      <div className="mt-4 overflow-hidden rounded-lg border border-border/60">
+        {rows.map((row) =>
+          row.kind === "category" ? (
+            <div
+              key={row.id}
+              className="border-b border-border/50 bg-surface/70 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+            >
+              {row.name}
+            </div>
+          ) : (
+            <div
+              key={row.channel.id}
+              draggable={!busy}
+              onDragStart={() => setDragIndex(row.index)}
+              onDragOver={(event) => {
+                event.preventDefault();
+                if (dragIndex !== null && dragIndex !== row.index) {
+                  setOverIndex(row.index);
+                }
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                void drop(row.index);
+              }}
+              onDragEnd={() => {
+                setDragIndex(null);
+                setOverIndex(null);
+              }}
+              className={cn(
+                "flex items-center gap-3 border-b border-border/50 bg-panel px-3 py-2.5 transition-colors last:border-b-0",
+                dragIndex === row.index && "opacity-50",
+                overIndex === row.index &&
+                  dragIndex !== null &&
+                  dragIndex !== row.index &&
+                  "ring-1 ring-inset ring-primary",
+              )}
+            >
+              <GripVertical
+                aria-hidden="true"
+                className="size-4 shrink-0 text-muted-foreground/50"
+              />
+              <Hash className="size-4 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                {row.channel.name}
+              </span>
+              <button
+                type="button"
+                aria-label={`Move ${row.channel.name} up`}
+                disabled={busy || row.index === 0}
+                className="rounded p-1 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+                onClick={() => void move(row.index, -1)}
+              >
+                <ChevronUp className="size-4" />
+              </button>
+              <button
+                type="button"
+                aria-label={`Move ${row.channel.name} down`}
+                disabled={busy || row.index === flat.length - 1}
+                className="rounded p-1 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+                onClick={() => void move(row.index, 1)}
+              >
+                <ChevronDown className="size-4" />
+              </button>
+            </div>
+          ),
+        )}
+        {rows.length === 0 && (
+          <p className="px-3 py-3 text-sm text-muted-foreground">
+            No channels yet — create one from the sidebar.
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Theme — community accent + background tint.                          */
+/* ------------------------------------------------------------------ */
+
+const THEME_SWATCHES = [
+  "#f97316",
+  "#22c55e",
+  "#14b8a6",
+  "#3b82f6",
+  "#a855f7",
+  "#ec4899",
+  "#facc15",
+];
+
+function ThemeSwatches({
+  value,
+  onPick,
+  label,
+}: {
+  value: string;
+  onPick: (hex: string) => void;
+  label: string;
+}) {
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        aria-label={`No ${label}`}
+        onClick={() => onPick("")}
+        className={cn(
+          "flex size-7 items-center justify-center rounded-full border text-xs text-muted-foreground",
+          !value ? "border-foreground" : "border-border",
+        )}
+      >
+        ∅
+      </button>
+      {THEME_SWATCHES.map((hex) => (
+        <button
+          key={hex}
+          type="button"
+          aria-label={`${label} ${hex}`}
+          onClick={() => onPick(hex)}
+          className={cn(
+            "size-7 rounded-full transition-transform",
+            value === hex
+              ? "ring-2 ring-foreground ring-offset-2 ring-offset-panel"
+              : "hover:scale-105",
+          )}
+          style={{ background: hex }}
+        />
+      ))}
+      <label
+        className="relative flex size-7 items-center justify-center overflow-hidden rounded-full border border-border text-sm font-bold text-muted-foreground"
+        style={value ? { background: value } : undefined}
+        title={`Custom ${label}`}
+      >
+        <input
+          type="color"
+          value={value || "#6b59f3"}
+          aria-label={`Custom ${label}`}
+          className="absolute inset-0 size-full cursor-pointer opacity-0"
+          onChange={(event) => onPick(event.target.value)}
+        />
+        {!value && <span aria-hidden="true">+</span>}
+      </label>
+      <Input
+        value={value}
+        onChange={(event) => onPick(event.target.value)}
+        placeholder="#18a5af"
+        maxLength={7}
+        className="h-8 w-28 font-mono text-xs"
+        aria-label={`${label} hex value`}
+      />
+    </div>
+  );
+}
+
+function ThemeTab({
+  serverId,
+  initialAccent,
+  initialTint,
+}: {
+  serverId: string;
+  initialAccent: string | null;
+  initialTint: string | null;
+}) {
+  const update = useMutation(api.servers.update);
+  const [accent, setAccent] = useState(initialAccent ?? "");
+  const [tint, setTint] = useState(initialTint ?? "");
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    if (busy) return;
+    if (accent && !/^#[0-9a-fA-F]{6}$/.test(accent)) {
+      toast.error("Accent must look like #67E8F9.");
+      return;
+    }
+    if (tint && !/^#[0-9a-fA-F]{6}$/.test(tint)) {
+      toast.error("Tint must look like #6b59f3.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await update({
+        serverId: serverId as Id<"servers">,
+        themeAccent: accent || null,
+        themeTint: tint || null,
+      });
+      toast.success("Theme saved.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not save the theme.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await update({
+        serverId: serverId as Id<"servers">,
+        themeAccent: null,
+        themeTint: null,
+      });
+      setAccent("");
+      setTint("");
+      toast.success("Theme removed.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not remove the theme.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="mt-6 rounded-lg border border-border/60 bg-panel p-5">
+      <h2 className="text-base font-semibold">Theme</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Give your server its own colours. Everyone sees them while they're
+        here, unless they turned server colours off in their Appearance
+        settings.
+      </p>
+
+      <h3 className="mt-6 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        Accent colour
+      </h3>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Buttons, links and highlights. Very light or very dark picks get
+        nudged so text stays readable.
+      </p>
+      <ThemeSwatches value={accent} onPick={setAccent} label="accent" />
+
+      <h3 className="mt-5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        Background tint
+      </h3>
+      <p className="mt-1 text-xs text-muted-foreground">
+        A light wash of colour over the background.
+      </p>
+      <ThemeSwatches value={tint} onPick={setTint} label="background tint" />
+
+      {/* Live preview: exactly what a message row looks like with the theme. */}
+      <div className="mt-5 rounded-xl border border-border/60 bg-surface p-4">
+        <div className="flex gap-3 rounded-lg bg-background/60 p-3">
+          <span
+            className="size-9 shrink-0 rounded-full"
+            style={{ background: accent || "var(--brand)" }}
+          />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm">
+              <span className="font-semibold">yapper</span> check out{" "}
+              <span
+                className="underline"
+                style={{ color: accent || undefined }}
+              >
+                this link
+              </span>
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Looks like this for everyone in the community.
+            </p>
+            <span
+              className="mt-3 inline-block rounded-md px-3 py-1.5 text-xs font-semibold text-white"
+              style={{ background: accent || "var(--brand)" }}
+            >
+              Button
+            </span>
+          </div>
+        </div>
+        {tint && (
+          <div
+            className="mt-2 rounded-lg px-3 py-2 text-xs"
+            style={{ background: `${tint}26` }}
+          >
+            Background tint wash preview.
+          </div>
+        )}
+      </div>
+
+      <div className="mt-4 flex items-center gap-3">
+        <Button disabled={busy} onClick={() => void save()}>
+          {busy && <Loader2 className="mr-2 size-4 animate-spin" />}
+          Save
+        </Button>
+        <Button variant="ghost" disabled={busy} onClick={() => void remove()}>
+          Remove theme
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Members — search, role chips, kick and ban.                          */
+/* ------------------------------------------------------------------ */
+
+function MembersTab({
+  serverId,
+  canRoles,
+  canBans,
+}: {
+  serverId: string;
+  canRoles: boolean;
+  canBans: boolean;
+}) {
+  const members = useQuery(api.servers.members, {
+    serverId: serverId as Id<"servers">,
+  });
+  const roles = useQuery(api.roles.list, {
+    serverId: serverId as Id<"servers">,
+  });
+  const me = useQuery(api.users.me);
+  const updateMemberRoles = useMutation(api.servers.updateMemberRoles);
+  const kick = useMutation(api.servers.kick);
+  const ban = useMutation(api.servers.ban);
+  const [term, setTerm] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const run = async (action: Promise<unknown>, success?: string) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await action;
+      if (success) toast.success(success);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "That didn't work.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const needle = term.trim().toLowerCase();
+  const all =
+    members === undefined
+      ? []
+      : [...members.online, ...members.offline];
+  const filtered = all.filter(
+    (member) =>
+      !needle ||
+      [member.user.name, member.nickname ?? "", member.user.username ?? ""].some(
+        (value) => value.toLowerCase().includes(needle),
+      ),
+  );
+
+  const setRoles = (member: (typeof filtered)[number], roleIds: string[]) =>
+    run(
+      updateMemberRoles({
+        serverId: serverId as Id<"servers">,
+        userId: member.user.id as Id<"users">,
+        roleIds: roleIds as Id<"serverRoles">[],
+      }),
+      "Roles updated.",
+    );
+
+  return (
+    <section className="mt-6 rounded-lg border border-border/60 bg-panel p-5">
+      <h2 className="text-base font-semibold">
+        Members
+        {members
+          ? ` · ${members.online.length + members.offline.length}`
+          : ""}
+      </h2>
+      <Input
+        value={term}
+        onChange={(event) => setTerm(event.target.value)}
+        placeholder="Search members"
+        className="mt-3"
+        aria-label="Search members"
+      />
+
+      <div className="mt-3 divide-y divide-border/50">
+        {members === undefined ? (
+          <p className="py-3 text-sm text-muted-foreground">Loading members…</p>
+        ) : filtered.length === 0 ? (
+          <p className="py-3 text-sm text-muted-foreground">
+            No members match that search.
+          </p>
+        ) : (
+          filtered.map((member) => {
+            const heldRoles = member.roles.filter((role) => !role.isDefault);
+            const addable = (roles ?? []).filter(
+              (role) =>
+                !role.isDefault &&
+                !heldRoles.some((held) => held.id === role.id),
+            );
+            return (
+              <div key={member.user.id} className="flex items-center gap-3 py-2.5">
+                <div className="relative shrink-0">
+                  <UserAvatar user={member.user} size="md" />
+                  {member.isOwner && (
+                    <span className="absolute -right-1.5 -top-1.5">
+                      <CrownBadge variant="owner" label="Owner" size="size-3.5" />
+                    </span>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="flex min-w-0 items-baseline gap-1.5 truncate text-sm font-semibold">
+                    <span className="truncate">
+                      {member.nickname ?? member.user.name}
+                    </span>
+                    <span className="truncate text-xs font-normal text-muted-foreground">
+                      @{member.user.username}
+                    </span>
+                  </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-1">
+                    {canRoles && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            aria-label={`Add a role to ${member.user.name}`}
+                            className="flex size-5 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:text-foreground"
+                          >
+                            <Plus className="size-3" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-48">
+                          {addable.length > 0 ? (
+                            addable.map((role) => (
+                              <DropdownMenuItem
+                                key={role.id}
+                                disabled={busy}
+                                onClick={() =>
+                                  void setRoles(member, [
+                                    ...heldRoles.map((held) => held.id),
+                                    role.id,
+                                  ])
+                                }
+                              >
+                                <span
+                                  className="size-2.5 shrink-0 rounded-full"
+                                  style={{ background: role.color ?? "#9CA3AF" }}
+                                />
+                                <span className="truncate">{role.name}</span>
+                              </DropdownMenuItem>
+                            ))
+                          ) : (
+                            <DropdownMenuItem disabled>
+                              Every role is already assigned
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                    {heldRoles.map((role) => (
+                      <span
+                        key={role.id}
+                        className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-surface px-2 py-0.5 text-[11px]"
+                      >
+                        <span
+                          className="size-2 rounded-full"
+                          style={{ background: role.color ?? "#9CA3AF" }}
+                        />
+                        {role.name}
+                        {canRoles && (
+                          <button
+                            type="button"
+                            aria-label={`Remove ${role.name} from ${member.user.name}`}
+                            disabled={busy}
+                            className="text-muted-foreground hover:text-destructive"
+                            onClick={() =>
+                              void setRoles(
+                                member,
+                                heldRoles
+                                  .filter((held) => held.id !== role.id)
+                                  .map((held) => held.id),
+                              )
+                            }
+                          >
+                            <X className="size-3" />
+                          </button>
+                        )}
+                      </span>
+                    ))}
+                    {heldRoles.length === 0 && (
+                      <span className="text-[11px] text-muted-foreground">
+                        No roles
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {canBans && !member.isOwner && member.user.id !== me?.id && (
+                  <div className="flex shrink-0 gap-3">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      className="text-xs font-medium text-destructive hover:underline disabled:opacity-50"
+                      onClick={() =>
+                        void run(
+                          kick({
+                            serverId: serverId as Id<"servers">,
+                            userId: member.user.id as Id<"users">,
+                          }),
+                          `${member.user.name} was kicked.`,
+                        )
+                      }
+                    >
+                      Kick
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      className="text-xs font-medium text-destructive hover:underline disabled:opacity-50"
+                      onClick={() =>
+                        void run(
+                          ban({
+                            serverId: serverId as Id<"servers">,
+                            userId: member.user.id as Id<"users">,
+                          }),
+                          `${member.user.name} was banned.`,
+                        )
+                      }
+                    >
+                      Ban
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Reports — the moderation queue, surfaced where staff look.           */
+/* ------------------------------------------------------------------ */
+
+function ReportRow({
+  report,
+  isAdmin,
+}: {
+  report: {
+    id: string;
+    reason: string;
+    details: string | null;
+    status: "open" | "reviewing" | "resolved" | "dismissed";
+    createdAt: number;
+    reporter: { name: string } | null;
+    reported: { name: string } | null;
+  };
+  isAdmin: boolean;
+}) {
+  const resolve = useMutation(api.reports.resolve);
+  const [status, setStatus] = useState<string>(
+    report.status === "open" ? "reviewing" : report.status,
+  );
+  const [note, setNote] = useState("");
+  const [warn, setWarn] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await resolve({
+        reportId: report.id as Id<"reports">,
+        status: status as "reviewing" | "resolved" | "dismissed",
+        resolution: note.trim() || undefined,
+        warn: warn && isAdmin ? true : undefined,
+      });
+      toast.success("Report updated.");
+      setWarn(false);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not update that.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-md border border-border/60 bg-surface px-3 py-2.5">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {report.status}
+        </span>
+        <span className="min-w-0 flex-1 truncate font-medium">
+          {report.reason}
+        </span>
+        <span className="text-xs text-muted-foreground">
+          {new Date(report.createdAt).toLocaleDateString(undefined, {
+            month: "short",
+            day: "numeric",
+          })}
+        </span>
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {report.reporter?.name ?? "Someone"} reported{" "}
+        {report.reported?.name ?? "a message"}
+        {report.details ? ` — ${report.details}` : ""}
+      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <select
+          value={status}
+          aria-label={`Status for ${report.reason}`}
+          className="rounded-md border border-input bg-background px-2 py-1.5 text-xs"
+          onChange={(event) => setStatus(event.target.value)}
+          disabled={busy}
+        >
+          <option value="reviewing">Reviewing</option>
+          <option value="resolved">Resolved</option>
+          <option value="dismissed">Dismissed</option>
+        </select>
+        <Input
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+          placeholder="Resolution note…"
+          maxLength={500}
+          className="h-8 flex-1 text-xs"
+        />
+        {isAdmin && report.reported && (
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={warn}
+              onChange={(event) => setWarn(event.target.checked)}
+            />
+            Also warn (3 days)
+          </label>
+        )}
+        <Button size="sm" variant="outline" disabled={busy} onClick={() => void save()}>
+          {busy && <Loader2 className="mr-1 size-3 animate-spin" />}
+          Save
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ReportsTab() {
+  const queue = useQuery(api.reports.queue, {});
+  const me = useQuery(api.users.me);
+  const isAdmin = me?.role === "admin";
+
+  return (
+    <section className="mt-6 rounded-lg border border-border/60 bg-panel p-5">
+      <h2 className="text-base font-semibold">Reports</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        People and messages reported in this community. Resolve them with a
+        note so the reporter knows what happened.
+      </p>
+      <div className="mt-4 space-y-2">
+        {queue === undefined ? (
+          <p className="text-sm text-muted-foreground">Loading reports…</p>
+        ) : queue.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Nothing to review — reports from this community land here.
+          </p>
+        ) : (
+          queue.map((report) => (
+            <ReportRow key={report.id} report={report} isAdmin={isAdmin === true} />
           ))
         )}
       </div>

@@ -7,6 +7,7 @@ import {
   hydrateUsers,
   notify,
   requireUser,
+  restrictionLevel,
   type Ctx,
 } from "./lib";
 
@@ -131,6 +132,16 @@ export const sendRequest = mutation({
         : null;
     if (!target) throw new Error("We couldn't find a user with that username.");
     if (target._id === id) throw new Error("You can't add yourself as a friend.");
+
+    const level = await restrictionLevel(ctx, id);
+    if (level >= 3) {
+      throw new Error("Your account is suspended while staff review it.");
+    }
+    if (level >= 1) {
+      throw new Error(
+        "Your account is limited — friend requests are off right now.",
+      );
+    }
 
     const blocked = await ctx.db
       .query("blocks")

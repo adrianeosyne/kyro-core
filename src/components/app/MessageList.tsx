@@ -36,8 +36,11 @@ export interface MessageAuthor {
   avatarUrl: string | null;
   presence: PresenceState;
   isFounder?: boolean;
-  /** Global badges (hydrated server-side) — highest is shown inline. */
-  badges?: string[];
+  /** Global badges (hydrated server-side) — highest is shown inline. */    badges?: string[];
+    /** The badge this author picked to show next to their name. */
+    primaryBadge?: string | null;
+    /** Community tag worn next to the name, e.g. "HTML". */
+    serverTag?: string | null;
 }
 
 export interface MessageDto {
@@ -355,10 +358,18 @@ function MessageRow({
                 {author?.name ?? "Unknown user"}
               </button>
               {author?.badges && author.badges.length > 0 ? (
-                <InlineBadge badges={author.badges} />
+                <InlineBadge
+                  badges={author.badges}
+                  primaryBadge={author.primaryBadge}
+                />
               ) : serverOwnerId && author?.id === serverOwnerId ? (
                 <CrownBadge label="Server owner" />
               ) : null}
+              {author?.serverTag && (
+                <span className="shrink-0 rounded border border-border/70 px-1 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+                  {author.serverTag}
+                </span>
+              )}
               <span className="text-[11px] text-muted-foreground">
                 {dayLabel(message.createdAt)} {formatTime(message.createdAt)}
               </span>

@@ -1,5 +1,6 @@
 import { useAction, useMutation, useQuery } from "convex/react";
 import {
+  AlertTriangle,
   Download,
   Loader2,
   LogOut,
@@ -34,11 +35,17 @@ import { useAuth } from "@/hooks/use-auth";
 import {
   applyPreferences,
   useUiStore,
-  type AccentChoice,
   type Density,
   type ThemeChoice,
 } from "@/lib/store";
 import { AVATAR_FRAMES } from "@/lib/frames";
+import { PROFILE_THEMES } from "@/lib/profileThemes";
+import { APP_TINTS } from "@/lib/tints";
+import {
+  GLOBAL_BADGE_META,
+  GlobalBadgeIcon,
+} from "@/components/app/GlobalBadges";
+import { Slider } from "@/components/ui/slider";
 import { MAX_UPLOAD_BYTES, useUploadFile } from "@/lib/upload";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -72,18 +79,6 @@ function maskEmail(email: string): string {
   return `${email.slice(0, 1)}***${email.slice(at)}`;
 }
 
-const ACCENTS: { id: AccentChoice; label: string; color: string }[] = [
-  { id: "default", label: "Blurple", color: "#5865F2" },
-  { id: "cyan", label: "Cyan", color: "#0E9FD8" },
-  { id: "blue", label: "Blue", color: "#3B82F6" },
-  { id: "violet", label: "Violet", color: "#8B5CF6" },
-  { id: "fuchsia", label: "Fuchsia", color: "#D946EF" },
-  { id: "emerald", label: "Emerald", color: "#10B981" },
-  { id: "teal", label: "Teal", color: "#14B8A6" },
-  { id: "rose", label: "Rose", color: "#F43F5E" },
-  { id: "orange", label: "Orange", color: "#F97316" },
-  { id: "amber", label: "Amber", color: "#F59E0B" },
-];
 
 export function SettingsDialog({
   open,
@@ -313,6 +308,340 @@ function ChangePasswordDialog({
   );
 }
 
+/* Account standing — derived from real staff warnings (3-day expiry). */
+const STANDING_LABELS = ["All good", "Limited", "Very limited", "Suspended"];
+const STANDING_TITLES = [
+  "Your account is all good",
+  "Your account is limited",
+  "Your account is more limited",
+  "Your account is suspended",
+];
+const STANDING_BLURBS = [
+  "Everything works normally.",
+  "1 active warning — new communities and friend requests are off.",
+  "2 active warnings — messaging is off too.",
+  "3 active warnings — your account is suspended.",
+];
+const STANDING_COLORS = ["#16a34a", "#f59e0b", "#f59e0b", "#ef4444"];
+
+function AccountStanding() {
+  const standing = useQuery(api.warnings.mine);
+  if (!standing) {
+    return <p className="text-sm text-muted-foreground">Loading…</p>;
+  }
+  const level = Math.min(standing.count, 3);
+  return (
+    <Section title="Account standing">
+      <div className="rounded-xl border border-border/70 bg-surface p-4">
+        <div className="flex items-center gap-3">
+          <span
+            className="flex size-9 shrink-0 items-center justify-center rounded-full"
+            style={{
+              background: `${STANDING_COLORS[level]}22`,
+              color: STANDING_COLORS[level],
+            }}
+          >
+            {level === 0 ? (
+              <ShieldCheck className="size-5" />
+            ) : (
+              <AlertTriangle className="size-5" />
+            )}
+          </span>
+          <div className="min-w-0">
+            <p className="font-semibold">{STANDING_TITLES[level]}</p>
+            <p className="text-sm text-muted-foreground">
+              {STANDING_BLURBS[level]}
+            </p>
+          </div>
+        </div>
+
+        {/* Four-step scale with the current step lit up. */}
+        <div className="relative mt-6">
+          <div className="absolute inset-x-[12%] top-1.5 h-px bg-border" />
+          <div className="relative flex">
+            {STANDING_LABELS.map((label, index) => (
+              <div key={label} className="flex w-1/4 flex-col items-center gap-2">
+                <span
+                  className="size-3 rounded-full"
+                  style={
+                    index === level
+                      ? {
+                          background: STANDING_COLORS[index],
+                          boxShadow: `0 0 0 4px ${STANDING_COLORS[index]}33`,
+                        }
+                      : { background: "var(--border)" }
+                  }
+                />
+                <span
+                  className={
+                    index === level
+                      ? "text-center text-xs font-semibold text-foreground"
+                      : "text-center text-xs text-muted-foreground"
+                  }
+                >
+                  {label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <ul className="mt-4 list-disc space-y-1 rounded-md border border-border/60 bg-panel px-4 py-2.5 text-xs text-muted-foreground [&>li]:ml-4">
+          <li>Warnings from Kyro's staff count for 3 days.</li>
+          <li>
+            1 warning limits your account: no new communities, no friend
+            requests. 2 limit it more: no messages either. 3 suspend it.
+          </li>
+        </ul>
+
+        {standing.warnings.length > 0 && (
+          <div className="mt-3 space-y-2">
+            {standing.warnings.map((warning) => (
+              <div
+                key={warning.id}
+                className="rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-xs"
+              >
+                <p className="font-semibold text-warning">Active warning</p>
+                <p className="mt-0.5 text-muted-foreground">{warning.reason}</p>
+                <p className="mt-1 text-muted-foreground/70">
+                  Expires{" "}
+                  {new Date(warning.expiresAt).toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </Section>
+  );
+}
+
+type BugStatus = "open" | "acknowledged" | "fixed" | "not_a_bug";
+
+const BUG_STATUS_META: Record<BugStatus, { label: string; chip: string }> = {
+  open: {
+    label: "Open",
+    chip: "border-warning/40 bg-warning/10 text-warning",
+  },
+  acknowledged: {
+    label: "Acknowledged",
+    chip: "border-brand/40 bg-brand/10 text-brand",
+  },
+  fixed: {
+    label: "Fixed",
+    chip: "border-success/40 bg-success/10 text-success",
+  },
+  not_a_bug: {
+    label: "Not a bug",
+    chip: "border-destructive/40 bg-destructive/10 text-destructive",
+  },
+};
+
+function BugRow({
+  report,
+  isAdmin,
+}: {
+  report: {
+    id: string;
+    title: string;
+    status: BugStatus;
+    staffNote: string | null;
+    createdAt: number;
+  };
+  isAdmin: boolean;
+}) {
+  const update = useMutation(api.bugReports.updateStatus);
+  const [note, setNote] = useState(report.staffNote ?? "");
+  const [busy, setBusy] = useState(false);
+  const meta = BUG_STATUS_META[report.status];
+
+  const save = async (status: BugStatus) => {
+    setBusy(true);
+    try {
+      await update({
+        reportId: report.id as Id<"bugReports">,
+        status,
+        staffNote: note,
+      });
+      toast.success("Bug report updated.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not update that.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-border/60 bg-panel px-3 py-2.5">
+      <div className="flex items-center gap-2">
+        <span
+          className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${meta.chip}`}
+        >
+          {meta.label}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+          {report.title}
+        </span>
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {new Date(report.createdAt).toLocaleDateString(undefined, {
+            month: "short",
+            day: "numeric",
+          })}
+        </span>
+      </div>
+      {report.staffNote && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          Staff: {report.staffNote}
+        </p>
+      )}
+      {isAdmin && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <select
+            value={report.status}
+            aria-label={`Status for ${report.title}`}
+            className="rounded-md border border-input bg-background px-2 py-1.5 text-xs"
+            onChange={(event) => void save(event.target.value as BugStatus)}
+          >
+            {(Object.keys(BUG_STATUS_META) as BugStatus[]).map((status) => (
+              <option key={status} value={status}>
+                {BUG_STATUS_META[status].label}
+              </option>
+            ))}
+          </select>
+          <Input
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            placeholder="Staff note…"
+            maxLength={300}
+            className="h-8 flex-1 text-xs"
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            onClick={() => void save(report.status)}
+          >
+            {busy && <Loader2 className="mr-1 size-3 animate-spin" />}
+            Save note
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BugHunting() {
+  const me = useQuery(api.users.me);
+  const mine = useQuery(api.bugReports.mine);
+  const all = useQuery(api.bugReports.list);
+  const submit = useMutation(api.bugReports.create);
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [details, setDetails] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const isAdmin = me?.role === "admin";
+  const rows = isAdmin ? all : mine;
+
+  const send = async () => {
+    setBusy(true);
+    try {
+      await submit({ title, details });
+      toast.success("Bug report sent — thanks.");
+      setOpen(false);
+      setTitle("");
+      setDetails("");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not send that.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Section title="Bug hunting">
+      <p className="text-sm text-muted-foreground">
+        Found something broken, or a way to do something you shouldn't be able
+        to? Report it — real reports get read by Kyro staff.
+      </p>
+      <Button className="mt-3" onClick={() => setOpen(true)}>
+        Report a bug
+      </Button>
+
+      <div className="mt-4 space-y-2">
+        {rows === undefined ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No bug reports yet — yours would show up here.
+          </p>
+        ) : (
+          rows.map((report) => (
+            <BugRow
+              key={report.id}
+              report={report}
+              isAdmin={isAdmin === true}
+            />
+          ))
+        )}
+      </div>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Report a bug</DialogTitle>
+            <DialogDescription>
+              Tell us what broke and how to make it happen again.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="bug-title">Title</Label>
+              <Input
+                id="bug-title"
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="Emoji picker closes instantly"
+                maxLength={120}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="bug-details">What happened?</Label>
+              <Textarea
+                id="bug-details"
+                rows={4}
+                value={details}
+                onChange={(event) => setDetails(event.target.value)}
+                placeholder="Steps, what you expected, what you saw."
+                maxLength={2000}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                disabled={busy || title.trim().length < 3}
+                onClick={() => void send()}
+              >
+                {busy && <Loader2 className="mr-2 size-4 animate-spin" />}
+                Send report
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </Section>
+  );
+}
+
 function AccountTab({ onEditProfile }: { onEditProfile: () => void }) {
   const me = useQuery(api.users.me);
   const claim = useMutation(api.users.claimProfile);
@@ -324,6 +653,25 @@ function AccountTab({ onEditProfile }: { onEditProfile: () => void }) {
   const [revealed, setRevealed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
+  const updatePrivacy = useMutation(api.users.updatePrivacy);
+  const revokeOthers = useMutation(api.users.revokeOtherSessions);
+
+  const logoutEverywhere = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await revokeOthers();
+      await signOut();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not sign out everywhere.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
 
   if (!me) return <p className="text-sm text-muted-foreground">Loading…</p>;
 
@@ -557,6 +905,76 @@ function AccountTab({ onEditProfile }: { onEditProfile: () => void }) {
         </p>
       </Section>
 
+      <AccountStanding />
+
+      <Section title="Privacy">
+        <div className="grid gap-3">
+          <div className="rounded-xl border border-border/70 bg-surface p-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Who can message you
+            </p>
+            <select
+              value={me.dmPolicy}
+              aria-label="Who can message you"
+              className="mt-2 w-full max-w-xs rounded-md border border-input bg-background px-3 py-2 text-sm"
+              onChange={(event) =>
+                void updatePrivacy({
+                  dmPolicy: event.target.value as
+                    | "everyone"
+                    | "friends"
+                    | "nobody",
+                })
+              }
+            >
+              <option value="everyone">Everyone</option>
+              <option value="friends">Friends only</option>
+              <option value="nobody">No one</option>
+            </select>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Friends can always message you. Blocked people never can.
+            </p>
+          </div>
+          <label className="flex items-center justify-between gap-4 rounded-xl border border-border/70 bg-surface p-4">
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold">
+                Suggest me to people with similar interests
+              </span>
+              <span className="block text-xs text-muted-foreground">
+                Shows you under Friends → Suggested for people who share your
+                communities. Hidden connections never count.
+              </span>
+            </span>
+            <Switch
+              checked={me.suggestible}
+              onCheckedChange={(checked) =>
+                void updatePrivacy({ suggestible: checked })
+              }
+            />
+          </label>
+        </div>
+      </Section>
+
+      <BugHunting />
+
+      <Section title="Account">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-surface p-4">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold">Log out of all devices</p>
+            <p className="text-xs text-muted-foreground">
+              Signs this account out everywhere, including here. Use it if you
+              think someone else has your login.
+            </p>
+          </div>
+          <Button
+            variant="destructive"
+            disabled={busy}
+            onClick={() => void logoutEverywhere()}
+          >
+            Log out everywhere
+          </Button>
+        </div>
+      </Section>
+
       <Section title="Session">
         <Button variant="outline" onClick={() => void signOut()}>
           <LogOut className="mr-2 size-4" /> Sign out
@@ -579,6 +997,16 @@ function ProfileTab() {
   const [bio, setBio] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [links, setLinks] = useState<ProfileLink[] | null>(null);
+  const claim = useMutation(api.users.claimProfile);
+  const myServers = useQuery(api.servers.listMine);
+  const [usernameDraft, setUsernameDraft] = useState<string | null>(null);
+  const [pronouns, setPronouns] = useState<string | null>(null);
+  // undefined = untouched, null = cleared (None), string = chosen id/tag.
+  const [wornTagSel, setWornTagSel] = useState<string | null | undefined>(
+    undefined,
+  );
+  const [badgeSel, setBadgeSel] = useState<string | null | undefined>(undefined);
+  const [themeSel, setThemeSel] = useState<string | null | undefined>(undefined);
   // undefined = not touched yet, null = plain avatar (no frame).
   const [frameSel, setFrameSel] = useState<string | null | undefined>(undefined);
   const [linksBusy, setLinksBusy] = useState(false);
@@ -591,15 +1019,23 @@ function ProfileTab() {
   const save = async () => {
     setBusy(true);
     try {
+      const nextUsername = (usernameDraft ?? me.username ?? "").trim();
+      if (nextUsername && nextUsername !== me.username) {
+        // Claiming a handle is its own mutation — it owns the 1-hour cooldown.
+        await claim({ username: nextUsername, name: name ?? me.name });
+      }
       await update({
         name: name ?? undefined,
         bio: bio ?? undefined,
         customStatus: status ?? undefined,
+        pronouns: pronouns ?? undefined,
       });
       toast.success("Profile saved");
       setName(null);
       setBio(null);
       setStatus(null);
+      setPronouns(null);
+      setUsernameDraft(null);
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Could not save your profile.",
@@ -720,8 +1156,253 @@ function ProfileTab() {
         </p>
       </Section>
 
-      <Section title="Profile">
+      <Section
+        title="Community tag"
+        description="Wear one of your communities' tags next to your name everywhere on Kyro."
+      >
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+          <button
+            type="button"
+            onClick={() => {
+              if ((wornTagSel === undefined ? me.serverTag : wornTagSel) === null)
+                return;
+              setWornTagSel(null);
+              void update({ wornTag: null }).catch((error) => {
+                setWornTagSel(undefined);
+                toast.error(
+                  error instanceof Error
+                    ? error.message
+                    : "Could not remove the tag.",
+                );
+              });
+            }}
+            className={cn(
+              "flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-xs transition-colors",
+              (wornTagSel === undefined ? me.serverTag : wornTagSel) === null
+                ? "border-primary bg-primary/10 text-foreground"
+                : "border-border/70 text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <span className="flex h-8 items-center justify-center rounded border border-dashed border-border px-3">
+              —
+            </span>
+            None
+          </button>
+          {(myServers ?? [])
+            .filter((entry) => entry.tag)
+            .map((entry) => {
+              const active =
+                (wornTagSel === undefined ? me.serverTag : wornTagSel) ===
+                entry.tag;
+              return (
+                <button
+                  key={entry.id}
+                  type="button"
+                  onClick={() => {
+                    setWornTagSel(entry.tag);
+                    void update({ wornTag: entry.tag }).catch((error) => {
+                      setWornTagSel(undefined);
+                      toast.error(
+                        error instanceof Error
+                          ? error.message
+                          : "Could not wear that tag.",
+                      );
+                    });
+                  }}
+                  className={cn(
+                    "flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-xs transition-colors",
+                    active
+                      ? "border-primary bg-primary/10 text-foreground"
+                      : "border-border/70 text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <span className="flex h-8 items-center rounded border border-border bg-panel px-2 text-xs font-bold uppercase tracking-wider">
+                    {entry.tag}
+                  </span>
+                  <span className="w-full truncate text-center">
+                    {entry.name}
+                  </span>
+                </button>
+              );
+            })}
+          {(myServers ?? []).every((entry) => !entry.tag) && (
+            <p className="col-span-full text-xs text-muted-foreground">
+              None of your communities have a tag yet — owners can add one in
+              Server settings → Overview.
+            </p>
+          )}
+        </div>
+      </Section>
+
+      <Section
+        title="Badge"
+        description="This one shows next to your name in chat and the member list. Your profile card shows all of them. None hides them everywhere."
+      >
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+          {me.badges.map((badge) => {
+            const active =
+              (badgeSel === undefined
+                ? (me.primaryBadge ?? me.badges[0] ?? "none")
+                : badgeSel) === badge;
+            return (
+              <button
+                key={badge}
+                type="button"
+                onClick={() => {
+                  setBadgeSel(badge);
+                  void update({ primaryBadge: badge }).catch((error) => {
+                    setBadgeSel(undefined);
+                    toast.error(
+                      error instanceof Error
+                        ? error.message
+                        : "Could not save that badge.",
+                    );
+                  });
+                }}
+                className={cn(
+                  "relative flex flex-col items-center gap-1.5 rounded-lg border p-3 text-xs transition-colors",
+                  active
+                    ? "border-primary bg-primary/10 text-foreground"
+                    : "border-border/70 text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {active && (
+                  <span className="absolute right-1.5 top-1.5 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                    ✓
+                  </span>
+                )}
+                <GlobalBadgeIcon badge={badge} className="size-5" />
+                {GLOBAL_BADGE_META[badge].label}
+              </button>
+            );
+          })}
+          {(() => {
+            const active =
+              (badgeSel === undefined
+                ? (me.primaryBadge ?? me.badges[0] ?? "none")
+                : badgeSel) === "none";
+            return (
+              <button
+                type="button"
+                onClick={() => {
+                  setBadgeSel("none");
+                  void update({ primaryBadge: "none" }).catch((error) => {
+                    setBadgeSel(undefined);
+                    toast.error(
+                      error instanceof Error
+                        ? error.message
+                        : "Could not save that.",
+                    );
+                  });
+                }}
+                className={cn(
+                  "relative flex flex-col items-center justify-center gap-1.5 rounded-lg border p-3 text-xs transition-colors",
+                  active
+                    ? "border-primary bg-primary/10 text-foreground"
+                    : "border-border/70 text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {active && (
+                  <span className="absolute right-1.5 top-1.5 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                    ✓
+                  </span>
+                )}
+                <span className="flex size-5 items-center justify-center rounded-full border border-dashed border-border">
+                  <X className="size-3" />
+                </span>
+                None
+              </button>
+            );
+          })()}
+        </div>
+      </Section>
+
+      <Section
+        title="Profile theme"
+        description="Colours your profile card and its banner when you have no picture."
+      >
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+          <button
+            type="button"
+            onClick={() => {
+              if ((themeSel === undefined ? me.profileTheme : themeSel) === null)
+                return;
+              setThemeSel(null);
+              void update({ profileTheme: "" }).catch((error) => {
+                setThemeSel(undefined);
+                toast.error(
+                  error instanceof Error
+                    ? error.message
+                    : "Could not remove the theme.",
+                );
+              });
+            }}
+            className={cn(
+              "flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-xs transition-colors",
+              (themeSel === undefined ? me.profileTheme : themeSel) === null
+                ? "border-primary bg-primary/10 text-foreground"
+                : "border-border/70 text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <span className="flex size-10 items-center justify-center rounded-full border border-dashed border-border">
+              <X className="size-4" />
+            </span>
+            None
+          </button>
+          {PROFILE_THEMES.map((theme) => {
+            const active =
+              (themeSel === undefined ? me.profileTheme : themeSel) === theme.id;
+            return (
+              <button
+                key={theme.id}
+                type="button"
+                onClick={() => {
+                  setThemeSel(theme.id);
+                  void update({ profileTheme: theme.id }).catch((error) => {
+                    setThemeSel(undefined);
+                    toast.error(
+                      error instanceof Error
+                        ? error.message
+                        : "Could not save that theme.",
+                    );
+                  });
+                }}
+                className={cn(
+                  "flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-xs transition-colors",
+                  active
+                    ? "border-primary bg-primary/10 text-foreground"
+                    : "border-border/70 text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <span
+                  className={cn(
+                    "size-10 rounded-full bg-gradient-to-br",
+                    theme.gradient,
+                  )}
+                />
+                {theme.label}
+              </button>
+            );
+          })}
+        </div>
+      </Section>
+
+      <Section title="Identity">
         <div className="grid gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="profile-username">Username</Label>
+            <Input
+              id="profile-username"
+              value={usernameDraft ?? me.username ?? ""}
+              onChange={(event) =>
+                setUsernameDraft(event.target.value.toLowerCase())
+              }
+              maxLength={32}
+            />
+            <p className="text-xs text-muted-foreground">
+              You can change your username once every hour.
+            </p>
+          </div>
           <div className="grid gap-2">
             <Label htmlFor="profile-name">Display name</Label>
             <Input
@@ -729,6 +1410,16 @@ function ProfileTab() {
               value={name ?? me.name}
               onChange={(event) => setName(event.target.value)}
               maxLength={64}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="profile-pronouns">Pronouns</Label>
+            <Input
+              id="profile-pronouns"
+              value={pronouns ?? me.pronouns ?? ""}
+              onChange={(event) => setPronouns(event.target.value)}
+              placeholder="He/Him"
+              maxLength={32}
             />
           </div>
           <div className="grid gap-2">
@@ -750,6 +1441,9 @@ function ProfileTab() {
               onChange={(event) => setBio(event.target.value)}
               maxLength={400}
             />
+            <p className="text-right text-xs text-muted-foreground">
+              {400 - (bio ?? me.bio ?? "").length} left
+            </p>
           </div>
           <div>
             <Button onClick={save} disabled={busy}>
@@ -933,9 +1627,14 @@ function ProfileTab() {
 
 function AppearanceTab() {
   const theme = useUiStore((state) => state.theme);
-  const accent = useUiStore((state) => state.accent);
   const density = useUiStore((state) => state.density);
   const showMemberList = useUiStore((state) => state.showMemberList);
+  const tint = useUiStore((state) => state.tint);
+  const tintA = useUiStore((state) => state.tintA);
+  const tintB = useUiStore((state) => state.tintB);
+  const tintIntensity = useUiStore((state) => state.tintIntensity);
+  const useServerColours = useUiStore((state) => state.useServerColours);
+  const unreadDmBubbles = useUiStore((state) => state.unreadDmBubbles);
   const setPreference = useUiStore((state) => state.setPreference);
 
   const themes: { id: ThemeChoice; label: string; icon: typeof Moon }[] = [
@@ -970,23 +1669,129 @@ function AppearanceTab() {
         </div>
       </Section>
 
-      <Section title="Accent colour">
-        <div className="flex flex-wrap gap-3">
-          {ACCENTS.map((entry) => (
-            <button
-              key={entry.id}
-              type="button"
-              aria-label={entry.label}
-              onClick={() => setPreference("accent", entry.id)}
-              className={cn(
-                "size-9 rounded-full transition-transform",
-                accent === entry.id
-                  ? "scale-110 ring-2 ring-foreground ring-offset-2 ring-offset-background"
-                  : "hover:scale-105",
-              )}
-              style={{ background: entry.color }}
+      <Section
+        title="Colour themes"
+        description="Tint the whole app. Free, obviously."
+      >
+        <div className="grid grid-cols-5 gap-2 sm:grid-cols-10">
+          <button
+            type="button"
+            aria-label="No colour tint"
+            onClick={() => setPreference("tint", "none")}
+            className={cn(
+              "relative aspect-square rounded-xl border transition-colors",
+              tint === "none"
+                ? "border-foreground"
+                : "border-border/70 hover:border-border",
+            )}
+          >
+            <span className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
+              None
+            </span>
+            {tint === "none" && (
+              <span className="absolute right-1 top-1 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                ✓
+              </span>
+            )}
+          </button>
+          {APP_TINTS.map((entry) => {
+            const active = tint === entry.id;
+            return (
+              <button
+                key={entry.id}
+                type="button"
+                aria-label={`Colour theme ${entry.id}`}
+                onClick={() => setPreference("tint", entry.id)}
+                className={cn(
+                  "relative aspect-square rounded-xl transition-transform",
+                  active
+                    ? "scale-105 ring-2 ring-foreground ring-offset-2 ring-offset-background"
+                    : "hover:scale-105",
+                )}
+                style={{
+                  backgroundImage: `linear-gradient(135deg, ${entry.a}, ${entry.b})`,
+                }}
+              >
+                {active && (
+                  <span className="absolute right-1 top-1 flex size-4 items-center justify-center rounded-full bg-black/40 text-[10px] font-bold text-white">
+                    ✓
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-4 rounded-xl border border-border/70 bg-surface p-3">
+          <span
+            className="size-10 shrink-0 rounded-lg"
+            style={{
+              backgroundImage: `linear-gradient(135deg, ${tintA}, ${tintB})`,
+            }}
+          />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold">Custom theme</p>
+            <p className="text-xs text-muted-foreground">
+              Two colours. Then set how strong it is.
+            </p>
+          </div>
+          <label
+            className="relative block size-8 shrink-0 cursor-pointer overflow-hidden rounded-md border border-border"
+            style={{ background: tintA }}
+            title="First colour"
+          >
+            <input
+              type="color"
+              value={tintA}
+              aria-label="Custom theme first colour"
+              className="absolute inset-0 size-full cursor-pointer opacity-0"
+              onChange={(event) => {
+                setPreference("tintA", event.target.value);
+                setPreference("tint", "custom");
+              }}
             />
-          ))}
+          </label>
+          <label
+            className="relative block size-8 shrink-0 cursor-pointer overflow-hidden rounded-md border border-border"
+            style={{ background: tintB }}
+            title="Second colour"
+          >
+            <input
+              type="color"
+              value={tintB}
+              aria-label="Custom theme second colour"
+              className="absolute inset-0 size-full cursor-pointer opacity-0"
+              onChange={(event) => {
+                setPreference("tintB", event.target.value);
+                setPreference("tint", "custom");
+              }}
+            />
+          </label>
+          <Button
+            size="sm"
+            variant={tint === "custom" ? "default" : "outline"}
+            onClick={() => setPreference("tint", "custom")}
+          >
+            Use custom
+          </Button>
+        </div>
+
+        <div className="mt-4 flex items-center gap-3">
+          <span className="text-sm text-muted-foreground">Intensity</span>
+          <Slider
+            min={0}
+            max={100}
+            step={5}
+            value={[tintIntensity]}
+            onValueChange={(values) =>
+              setPreference("tintIntensity", values[0] ?? 75)
+            }
+            className="flex-1"
+            aria-label="Tint intensity"
+          />
+          <span className="w-10 text-right text-sm font-semibold">
+            {tintIntensity}%
+          </span>
         </div>
       </Section>
 
@@ -1019,6 +1824,42 @@ function AppearanceTab() {
           <Switch
             checked={showMemberList}
             onCheckedChange={(checked) => setPreference("showMemberList", checked)}
+          />
+        </label>
+      </Section>
+
+      <Section title="Server colours">
+        <label className="flex items-center justify-between gap-4 rounded-lg border border-border/70 bg-surface px-4 py-3">
+          <span className="text-sm">
+            Use a server's own colours
+            <span className="block text-xs text-muted-foreground">
+              Show a community's colours while you're in it. Turn off to always
+              keep yours.
+            </span>
+          </span>
+          <Switch
+            checked={useServerColours}
+            onCheckedChange={(checked) =>
+              setPreference("useServerColours", checked)
+            }
+          />
+        </label>
+      </Section>
+
+      <Section title="Server list">
+        <label className="flex items-center justify-between gap-4 rounded-lg border border-border/70 bg-surface px-4 py-3">
+          <span className="text-sm">
+            Unread DMs in the server list
+            <span className="block text-xs text-muted-foreground">
+              People who just messaged you show up as bubbles under Home. Turn
+              off if they pile up.
+            </span>
+          </span>
+          <Switch
+            checked={unreadDmBubbles}
+            onCheckedChange={(checked) =>
+              setPreference("unreadDmBubbles", checked)
+            }
           />
         </label>
       </Section>

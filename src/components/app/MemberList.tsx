@@ -19,8 +19,12 @@ type Member = {
     presence: PresenceState;
     customStatus: string | null;
     isFounder?: boolean;
-    /** Global badges (hydrated server-side) — highest is shown inline. */
+    /** Global badges (hydrated server-side) — chosen/highest shown inline. */
     badges?: string[];
+    /** The badge this member picked to show next to their name. */
+    primaryBadge?: string | null;
+    /** Community tag worn next to the name, e.g. "HTML". */
+    serverTag?: string | null;
   };
   nickname: string | null;
   isOwner: boolean;
@@ -84,10 +88,18 @@ export function MemberList({ serverId }: { serverId: string }) {
             {member.nickname ?? member.user.name}
           </span>
           {member.user.badges && member.user.badges.length > 0 ? (
-            <InlineBadge badges={member.user.badges} />
+            <InlineBadge
+              badges={member.user.badges}
+              primaryBadge={member.user.primaryBadge}
+            />
           ) : member.isOwner ? (
             <CrownBadge label="Server owner" />
           ) : null}
+          {member.user.serverTag && (
+            <span className="shrink-0 rounded border border-border/70 px-1 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+              {member.user.serverTag}
+            </span>
+          )}
         </span>
         {member.user.customStatus && (
           <span className="block truncate text-xs text-muted-foreground">

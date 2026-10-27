@@ -8,6 +8,7 @@ import { ChannelChat, DirectChat } from "@/components/app/ChatView";
 import { DiscoverView } from "@/components/app/DiscoverView";
 import { FriendsView } from "@/components/app/Friends";
 import { ServerSettings } from "@/components/app/ServerSettings";
+import { ServerThemeScope } from "@/components/app/ServerThemeScope";
 
 /** The signed-in product: everything lives inside the AppShell frame and is
  *  routed underneath it — friends home, DMs, community channels and the
@@ -41,13 +42,21 @@ function DirectChatRoute() {
 function ChannelRoute() {
   const { serverId, channelId } = useParams();
   if (!serverId || !channelId) return <Navigate to="/dashboard" replace />;
-  return <ChannelChat serverId={serverId} channelId={channelId} />;
+  return (
+    <ServerThemeScope serverId={serverId as Id<"servers">}>
+      <ChannelChat serverId={serverId} channelId={channelId} />
+    </ServerThemeScope>
+  );
 }
 
 function ServerSettingsRoute() {
   const { serverId } = useParams();
   if (!serverId) return <Navigate to="/dashboard" replace />;
-  return <ServerSettings serverId={serverId} />;
+  return (
+    <ServerThemeScope serverId={serverId as Id<"servers">}>
+      <ServerSettings serverId={serverId} />
+    </ServerThemeScope>
+  );
 }
 
 /** Landing on a community drops you into its first readable channel. */

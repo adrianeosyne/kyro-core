@@ -16,6 +16,7 @@ import {
   requireProfile,
   requireServerAccess,
   requireUser,
+  restrictionLevel,
   type Ctx,
 } from "./lib";
 
@@ -203,6 +204,15 @@ export const send = mutation({
   },
   handler: async (ctx, args) => {
     const { id: userId, user } = await requireProfile(ctx);
+    const accountLevel = await restrictionLevel(ctx, userId);
+    if (accountLevel >= 3) {
+      throw new Error("Your account is suspended while staff review it.");
+    }
+    if (accountLevel >= 2) {
+      throw new Error(
+        "Your account is limited — you can't send messages right now.",
+      );
+    }
     const content = args.content.trim();
     const attachments = args.attachments ?? [];
     if (content.length > MAX_MESSAGE_LENGTH) {
@@ -254,10 +264,46 @@ export const send = mutation({
       if (channel.readOnly && !can(permissions, PERMISSIONS.MANAGE_MESSAGES)) {
         throw new Error("This channel is read-only.");
       }
-      if (access.server.locked === true && !can(permissions, PERMISSIONS.MANAGE_MESSAGES)) {
+      const lockedNow =
+        access.server.locked === true &&
+        (access.server.lockedUntil === undefined ||
+          access.server.lockedUntil > Date.now());
+      if (lockedNow && !can(permissions, PERMISSIONS.MANAGE_MESSAGES)) {
         throw new Error(
           "This community is locked — only staff can post right now.",
         );
+      }
+      if (
+        access.server.rulesChannelId !== undefined &&
+        channel._id === access.server.rulesChannelId &&
+        access.server.ownerId !== userId &&
+        !can(permissions, PERMISSIONS.MANAGE_SERVER)
+      ) {
+        throw new Error(
+          "Only people who can manage this server can post in the rules channel.",
+        );
+      }
+      const verification = access.server.verificationLevel ?? "none";
+      if (verification !== "none") {
+        const thresholds = {
+          low: 5 * 60 * 1000,
+          medium: 60 * 60 * 1000,
+          high: 24 * 60 * 60 * 1000,
+        } as const;
+        const exempt =
+          access.server.ownerId === userId ||
+          access.member.roleIds.length > 0 ||
+          can(permissions, PERMISSIONS.MANAGE_MESSAGES);
+        const accountAge = Date.now() - (user.createdAt ?? Date.now());
+        if (!exempt && accountAge < thresholds[verification]) {
+          throw new Error(
+            verification === "low"
+              ? "This community needs accounts that are at least 5 minutes old to talk."
+              : verification === "medium"
+                ? "This community needs accounts that are at least 1 hour old to talk."
+                : "This community needs accounts that are at least 1 day old to talk.",
+          );
+        }
       }
       if (!can(permissions, PERMISSIONS.SEND_MESSAGES)) {
         throw new Error("You don't have permission to send messages here.");

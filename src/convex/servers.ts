@@ -11,6 +11,7 @@ import {
   requireProfile,
   requireServerAccess,
   requireUser,
+  restrictionLevel,
   type Ctx,
 } from "./lib";
 
@@ -115,6 +116,7 @@ export const listMine = query({
           memberCount,
           muted: membership.muted === true,
           isOwner: server.ownerId === id,
+          tag: server.tag ?? null,
           ...badges,
         };
       }),
@@ -266,6 +268,15 @@ export const get = query({
       tags: access.server.tags ?? [],
       vanityCode: access.server.vanityCode ?? null,
       locked: access.server.locked === true,
+      lockedUntil: access.server.lockedUntil ?? null,
+      tag: access.server.tag ?? null,
+      links: access.server.links ?? [],
+      verificationLevel: access.server.verificationLevel ?? "none",
+      minAccountAgeMs: access.server.minAccountAgeMs ?? 0,
+      rulesChannelId:
+        (access.server.rulesChannelId as string | undefined) ?? null,
+      themeAccent: access.server.themeAccent ?? null,
+      themeTint: access.server.themeTint ?? null,
       createdAt: access.server.createdAt,
       isOwner: access.server.ownerId === id,
       muted: access.member.muted === true,
@@ -508,6 +519,25 @@ export const update = mutation({
     tags: v.optional(v.array(v.string())),
     iconStorageId: v.optional(v.union(v.id("_storage"), v.null())),
     bannerStorageId: v.optional(v.union(v.id("_storage"), v.null())),
+    tag: v.optional(v.union(v.string(), v.null())),
+    links: v.optional(
+      v.union(
+        v.array(v.object({ label: v.string(), url: v.string() })),
+        v.null(),
+      ),
+    ),
+    rulesChannelId: v.optional(v.union(v.id("channels"), v.null())),
+    verificationLevel: v.optional(
+      v.union(
+        v.literal("none"),
+        v.literal("low"),
+        v.literal("medium"),
+        v.literal("high"),
+      ),
+    ),
+    minAccountAgeMs: v.optional(v.union(v.number(), v.null())),
+    themeAccent: v.optional(v.union(v.string(), v.null())),
+    themeTint: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     const { id } = await requireProfile(ctx);
@@ -535,6 +565,78 @@ export const update = mutation({
         .filter((tag) => tag.length > 0 && /^[a-z0-9][a-z0-9 &+-]*$/.test(tag))
         .slice(0, 5);
       patch.tags = Array.from(new Set(tags));
+    }
+    if (args.tag !== undefined) {
+      if (!args.tag) {
+        patch.tag = undefined;
+      } else {
+        const tag = args.tag.trim().toUpperCase().slice(0, 4);
+        if (!/^[A-Z0-9]{2,4}$/.test(tag)) {
+          throw new Error("Community tags are 2–4 letters or numbers.");
+        }
+        patch.tag = tag;
+      }
+    }
+    if (args.links !== undefined) {
+      if (args.links === null) {
+        patch.links = undefined;
+      } else {
+        if (args.links.length > 5) {
+          throw new Error("You can keep up to 5 links.");
+        }
+        const links = args.links
+          .map((link) => ({
+            label: link.label.trim().slice(0, 32),
+            url: link.url.trim().slice(0, 200),
+          }))
+          .filter((link) => link.label.length > 0 && link.url.length > 0);
+        for (const link of links) {
+          if (!/^https?:\/\//i.test(link.url)) {
+            throw new Error(
+              `Links need to start with http:// or https:// — check "${link.label}".`,
+            );
+          }
+        }
+        patch.links = links;
+      }
+    }
+    if (args.rulesChannelId !== undefined) {
+      if (args.rulesChannelId === null) {
+        patch.rulesChannelId = undefined;
+      } else {
+        const channel = await ctx.db.get(args.rulesChannelId);
+        if (!channel || channel.serverId !== args.serverId) {
+          throw new Error("That rules channel isn't in this community.");
+        }
+        patch.rulesChannelId = args.rulesChannelId;
+      }
+    }
+    if (args.verificationLevel !== undefined) {
+      patch.verificationLevel = args.verificationLevel;
+    }
+    if (args.minAccountAgeMs !== undefined) {
+      if (args.minAccountAgeMs === null) {
+        patch.minAccountAgeMs = undefined;
+      } else if (
+        ![0, 86400000, 604800000].includes(Math.floor(args.minAccountAgeMs))
+      ) {
+        throw new Error("New-account gates are off, 1 day or 7 days.");
+      } else {
+        patch.minAccountAgeMs = Math.floor(args.minAccountAgeMs);
+      }
+    }
+    const HEX_COLOUR = /^#[0-9a-fA-F]{6}$/;
+    if (args.themeAccent !== undefined) {
+      if (args.themeAccent && !HEX_COLOUR.test(args.themeAccent)) {
+        throw new Error("Accent must be a hex colour like #67E8F9.");
+      }
+      patch.themeAccent = args.themeAccent || undefined;
+    }
+    if (args.themeTint !== undefined) {
+      if (args.themeTint && !HEX_COLOUR.test(args.themeTint)) {
+        throw new Error("Tint must be a hex colour like #6b59f3.");
+      }
+      patch.themeTint = args.themeTint || undefined;
     }
     if (args.iconStorageId !== undefined) {
       patch.iconStorageId = args.iconStorageId === null ? undefined : args.iconStorageId;
@@ -614,6 +716,17 @@ export const join = mutation({
       .withIndex("by_server_user", (q) => q.eq("serverId", serverId).eq("userId", id))
       .unique();
     if (banned) throw new Error("You're banned from this community.");
+    const gateMs = server.minAccountAgeMs ?? 0;
+    if (gateMs > 0 && Date.now() - (user.createdAt ?? Date.now()) < gateMs) {
+      throw new Error(
+        gateMs >= 604800000
+          ? "This community only accepts accounts older than 7 days."
+          : "This community only accepts accounts older than 1 day.",
+      );
+    }
+    if ((await restrictionLevel(ctx, id)) >= 3) {
+      throw new Error("Your account is suspended while staff review it.");
+    }
     const existing = await ctx.db
       .query("serverMembers")
       .withIndex("by_server_user", (q) => q.eq("serverId", serverId).eq("userId", id))
@@ -1052,6 +1165,17 @@ export const joinByCode = mutation({
       )
       .unique();
     if (banned) throw new Error("You're banned from that community.");
+    const gateMs = server.minAccountAgeMs ?? 0;
+    if (gateMs > 0 && Date.now() - (user.createdAt ?? Date.now()) < gateMs) {
+      throw new Error(
+        gateMs >= 604800000
+          ? "This community only accepts accounts older than 7 days."
+          : "This community only accepts accounts older than 1 day.",
+      );
+    }
+    if ((await restrictionLevel(ctx, id)) >= 3) {
+      throw new Error("Your account is suspended while staff review it.");
+    }
 
     const existing = await ctx.db
       .query("serverMembers")
@@ -1141,8 +1265,13 @@ export const setVanity = mutation({
  * post. Members keep read access, so announcements still reach everyone.
  */
 export const setLocked = mutation({
-  args: { serverId: v.id("servers"), locked: v.boolean() },
-  handler: async (ctx, { serverId, locked }) => {
+  args: {
+    serverId: v.id("servers"),
+    locked: v.boolean(),
+    /** Auto-unlock delay for timed raid locks. */
+    durationMs: v.optional(v.number()),
+  },
+  handler: async (ctx, { serverId, locked, durationMs }) => {
     const { id } = await requireUser(ctx);
     const access = await requireServerAccess(ctx, serverId, id);
     if (
@@ -1151,14 +1280,25 @@ export const setLocked = mutation({
     ) {
       throw new Error("You don't have permission to lock this community.");
     }
-    await ctx.db.patch(serverId, { locked, updatedAt: Date.now() });
+    await ctx.db.patch(serverId, {
+      locked,
+      lockedUntil:
+        locked && durationMs && durationMs > 0
+          ? Date.now() + durationMs
+          : undefined,
+      updatedAt: Date.now(),
+    });
     await logAudit(ctx, {
       serverId,
       actorId: id,
       action: locked ? "server.lock" : "server.unlock",
       targetType: "server",
       targetId: serverId,
-      details: locked ? "community locked" : "community unlocked",
+      details: locked
+        ? durationMs && durationMs > 0
+          ? `community locked for ${Math.round(durationMs / 60000)} min`
+          : "community locked"
+        : "community unlocked",
     });
   },
 });

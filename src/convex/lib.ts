@@ -90,6 +90,14 @@ export interface PublicUser {
   avatarFrame: string | null;
   /** Account creation timestamp, shown as "member since" on profiles. */
   memberSince: number | null;
+  /** Pronouns shown on the profile card, e.g. "He/Him". */
+  pronouns: string | null;
+  /** The badge this person chose to show next to their name in chat. */
+  primaryBadge: string | null;
+  /** Profile theme preset id, or null for the default look. */
+  profileTheme: string | null;
+  /** Community tag worn next to the name, or null. */
+  serverTag: string | null;
 }
 
 /** The one account that carries Kyro's platform-wide founder crown. */
@@ -97,6 +105,23 @@ export const FOUNDER_USERNAME = "adrianeosyne";
 
 /** A platform-wide badge; never scoped to a single community. */
 export type GlobalBadge = "founder" | "admin" | "moderator" | "verified";
+
+/**
+ * Active (unexpired) staff warnings on an account: 0 = clean, 1 = limited,
+ * 2 = very limited, 3+ = suspended. Powers account standing and the write
+ * gates in messages.send / servers.create / social.sendRequest.
+ */
+export async function restrictionLevel(
+  ctx: Ctx,
+  userId: Id<"users">,
+): Promise<number> {
+  const rows = await ctx.db
+    .query("warnings")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .collect();
+  const now = Date.now();
+  return rows.filter((row) => row.expiresAt > now).length;
+}
 
 export async function hydrateUser(
   ctx: Ctx,
@@ -136,6 +161,10 @@ export async function hydrateUser(
     links: (user.links ?? []).slice(0, 6),
     avatarFrame: user.avatarFrame ?? null,
     memberSince: user.createdAt ?? null,
+    pronouns: user.pronouns ?? null,
+    primaryBadge: user.primaryBadge ?? null,
+    profileTheme: user.profileTheme ?? null,
+    serverTag: user.wornTag ?? null,
   };
 }
 

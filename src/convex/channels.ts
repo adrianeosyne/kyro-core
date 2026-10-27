@@ -55,6 +55,7 @@ export const list = query({
           categoryId: (channel.categoryId as string | undefined) ?? null,
           position: channel.position,
           readOnly: channel.readOnly === true,
+          isRules: access.server.rulesChannelId === channel._id,
           slowMode: channel.slowMode ?? 0,
           lastMessageAt: channel.lastMessageAt ?? 0,
           lastMessageSenderId:
