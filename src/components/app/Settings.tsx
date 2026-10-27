@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import {
   Download,
   Loader2,
@@ -62,6 +62,16 @@ const TABS: { id: TabId; label: string; icon: typeof UserIcon }[] = [
   { id: "data", label: "Data", icon: Download },
 ];
 
+/** Mirrors USERNAME_COOLDOWN_MS in src/convex/users.ts — shown as a hint. */
+const USERNAME_CHANGE_COOLDOWN_MS = 60 * 60 * 1000;
+
+/** `alice@example.com` → `a***@example.com` until the user hits Reveal. */
+function maskEmail(email: string): string {
+  const at = email.indexOf("@");
+  if (at < 1) return email;
+  return `${email.slice(0, 1)}***${email.slice(at)}`;
+}
+
 const ACCENTS: { id: AccentChoice; label: string; color: string }[] = [
   { id: "default", label: "Blurple", color: "#5865F2" },
   { id: "cyan", label: "Cyan", color: "#0E9FD8" },
@@ -120,7 +130,9 @@ export function SettingsDialog({
           </nav>
 
           <div className="min-h-0 flex-1 overflow-y-auto p-5">
-            {tab === "account" && <AccountTab />}
+            {tab === "account" && (
+              <AccountTab onEditProfile={() => setTab("profile")} />
+            )}
             {tab === "profile" && <ProfileTab />}
             {tab === "appearance" && <AppearanceTab />}
             {tab === "privacy" && <PrivacyTab />}
@@ -153,70 +165,396 @@ function Section({
   );
 }
 
-function AccountTab() {
+/** One labelled field row on the My Account card: value + Edit action. */
+function AccountRow({
+  label,
+  hint,
+  children,
+  action,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-4 px-4 py-3.5">
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {label}
+        </p>
+        <div className="mt-1 truncate text-sm">{children}</div>
+        {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+/** Modal for swapping this account's password after re-authentication. */
+function ChangePasswordDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  // `users/changePassword.ts` nests one level deeper in the generated API.
+  const changePassword = useAction(api.users.changePassword.changePassword);
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const close = (value: boolean) => {
+    if (!value) {
+      setCurrent("");
+      setNext("");
+      setConfirm("");
+    }
+    onOpenChange(value);
+  };
+
+  const submit = async () => {
+    if (next !== confirm) {
+      toast.error("New passwords don't match.");
+      return;
+    }
+    if (next.length < 8) {
+      toast.error("New passwords need at least 8 characters.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await changePassword({ currentPassword: current, newPassword: next });
+      toast.success("Password changed — use it the next time you sign in.");
+      close(false);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not change your password.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={close}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Change password</DialogTitle>
+          <DialogDescription>
+            Confirm your current password, then choose a new one. You'll use it
+            the next time you sign in.
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void submit();
+          }}
+        >
+          <div className="grid gap-2">
+            <Label htmlFor="pw-current">Current password</Label>
+            <Input
+              id="pw-current"
+              type="password"
+              autoComplete="current-password"
+              value={current}
+              onChange={(event) => setCurrent(event.target.value)}
+              required
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="pw-new">New password</Label>
+            <Input
+              id="pw-new"
+              type="password"
+              autoComplete="new-password"
+              minLength={8}
+              value={next}
+              onChange={(event) => setNext(event.target.value)}
+              required
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="pw-confirm">Confirm new password</Label>
+            <Input
+              id="pw-confirm"
+              type="password"
+              autoComplete="new-password"
+              minLength={8}
+              value={confirm}
+              onChange={(event) => setConfirm(event.target.value)}
+              required
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={busy}
+              onClick={() => close(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={busy || !current || next.length < 8}
+            >
+              {busy && <Loader2 className="mr-2 size-4 animate-spin" />}
+              Change password
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AccountTab({ onEditProfile }: { onEditProfile: () => void }) {
   const me = useQuery(api.users.me);
   const claim = useMutation(api.users.claimProfile);
+  const update = useMutation(api.users.updateProfile);
   const { signOut } = useAuth();
-  const [username, setUsername] = useState<string | null>(null);
+  const [editing, setEditing] = useState<null | "name" | "username">(null);
+  const [nameDraft, setNameDraft] = useState("");
+  const [userDraft, setUserDraft] = useState("");
+  const [revealed, setRevealed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
 
   if (!me) return <p className="text-sm text-muted-foreground">Loading…</p>;
 
-  const value = username ?? me.username ?? "";
+  const cooldownMs = me.usernameChangedAt
+    ? Math.max(
+        0,
+        USERNAME_CHANGE_COOLDOWN_MS - (Date.now() - me.usernameChangedAt),
+      )
+    : 0;
+  const cooldownLabel = (() => {
+    const minutes = Math.ceil(cooldownMs / 60_000);
+    if (minutes >= 60) {
+      const hours = Math.floor(minutes / 60);
+      const rest = minutes % 60;
+      return `${hours} hour${hours === 1 ? "" : "s"}${rest ? ` ${rest} min` : ""}`;
+    }
+    return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  })();
+
+  const save = async (kind: "name" | "username") => {
+    setBusy(true);
+    try {
+      if (kind === "name") {
+        await update({ name: nameDraft });
+        toast.success("Display name updated");
+      } else {
+        await claim({ username: userDraft, name: me.name });
+        toast.success("Username updated");
+      }
+      setEditing(null);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not save that.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <>
-      <Section title="My account" description="How you appear across Kyro.">
-        <div className="flex items-center gap-4 rounded-xl border border-border/70 bg-surface p-4">
-          <UserAvatar user={me} size="lg" />
-          <div className="min-w-0">
-            <p className="truncate font-medium">{me.name}</p>
-            <p className="truncate text-sm text-muted-foreground">@{me.username}</p>
-            <p className="truncate text-xs text-muted-foreground">
-              {me.email ?? "No email on file"}
-            </p>
+      {/* Identity card: banner, avatar and the field rows beneath it. */}
+      <section className="mb-7">
+        <div className="overflow-hidden rounded-xl border border-border/70 bg-surface">
+          <div className="relative h-28 bg-gradient-to-r from-brand/60 via-brand/30 to-cyan/40">
+            {me.bannerUrl && (
+              <img
+                src={me.bannerUrl}
+                alt=""
+                className="size-full object-cover"
+              />
+            )}
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden px-4 text-center text-2xl font-bold uppercase tracking-[0.3em] text-white/30 select-none"
+            >
+              {me.name}
+            </span>
+          </div>
+          <div className="flex items-end gap-4 px-4 pb-4">
+            <div className="-mt-8 shrink-0 rounded-full border-4 border-surface bg-panel">
+              <UserAvatar user={me} size="xl" />
+            </div>
+            <div className="min-w-0 flex-1 pb-1">
+              <p className="truncate text-lg font-semibold leading-tight">
+                {me.name}
+              </p>
+              <p className="truncate text-sm text-muted-foreground">
+                @{me.username ?? "no username"}
+                {me.customStatus ? ` · ${me.customStatus}` : ""}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mb-1 shrink-0"
+              onClick={onEditProfile}
+            >
+              Edit profile
+            </Button>
           </div>
         </div>
-      </Section>
 
-      <Section
-        title="Username"
-        description="Usernames can be changed once every 30 days."
-      >
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="grid gap-2">
-            <Label htmlFor="settings-username">Username</Label>
-            <Input
-              id="settings-username"
-              value={value}
-              onChange={(event) => setUsername(event.target.value.toLowerCase())}
-              maxLength={32}
-              className="w-64"
-            />
-          </div>
-          <Button
-            disabled={busy || value.length < 3 || value === me.username}
-            onClick={async () => {
-              setBusy(true);
-              try {
-                await claim({ username: value, name: me.name });
-                toast.success("Username updated");
-                setUsername(null);
-              } catch (error) {
-                toast.error(
-                  error instanceof Error
-                    ? error.message
-                    : "Could not update username.",
-                );
-              } finally {
-                setBusy(false);
-              }
-            }}
+        <div className="mt-3 divide-y divide-border/60 overflow-hidden rounded-xl border border-border/70 bg-surface">
+          <AccountRow
+            label="Display name"
+            action={
+              editing === "name" ? (
+                <div className="flex shrink-0 gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy}
+                    onClick={() => setEditing(null)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={
+                      busy ||
+                      nameDraft.trim().length < 2 ||
+                      nameDraft === me.name
+                    }
+                    onClick={() => void save("name")}
+                  >
+                    {busy && <Loader2 className="mr-1.5 size-4 animate-spin" />}
+                    Save
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setNameDraft(me.name);
+                    setEditing("name");
+                  }}
+                >
+                  Edit
+                </Button>
+              )
+            }
           >
-            {busy && <Loader2 className="mr-2 size-4 animate-spin" />}
-            Save
-          </Button>
+            {editing === "name" ? (
+              <Input
+                autoFocus
+                value={nameDraft}
+                onChange={(event) => setNameDraft(event.target.value)}
+                maxLength={64}
+                className="h-9"
+                aria-label="Display name"
+              />
+            ) : (
+              <span className="truncate">{me.name}</span>
+            )}
+          </AccountRow>
+
+          <AccountRow
+            label="Username"
+            hint={
+              cooldownMs > 0
+                ? `You can change your username again in ${cooldownLabel}.`
+                : "You can change your username once every hour."
+            }
+            action={
+              editing === "username" ? (
+                <div className="flex shrink-0 gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy}
+                    onClick={() => setEditing(null)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={
+                      busy ||
+                      userDraft.length < 3 ||
+                      userDraft === me.username
+                    }
+                    onClick={() => void save("username")}
+                  >
+                    {busy && <Loader2 className="mr-1.5 size-4 animate-spin" />}
+                    Save
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={cooldownMs > 0}
+                  onClick={() => {
+                    setUserDraft(me.username ?? "");
+                    setEditing("username");
+                  }}
+                >
+                  Edit
+                </Button>
+              )
+            }
+          >
+            {editing === "username" ? (
+              <Input
+                autoFocus
+                value={userDraft}
+                onChange={(event) => setUserDraft(event.target.value.toLowerCase())}
+                maxLength={32}
+                className="h-9"
+                aria-label="Username"
+              />
+            ) : (
+              <span className="truncate">@{me.username ?? "—"}</span>
+            )}
+          </AccountRow>
+
+          <AccountRow
+            label="Email"
+            action={
+              me.email ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setRevealed((value) => !value)}
+                >
+                  {revealed ? "Hide" : "Reveal"}
+                </Button>
+              ) : undefined
+            }
+          >
+            {me.email ? (
+              <span className="truncate">
+                {revealed ? me.email : maskEmail(me.email)}
+              </span>
+            ) : (
+              <span className="text-muted-foreground">No email on file</span>
+            )}
+          </AccountRow>
         </div>
+      </section>
+
+      <Section title="Password and authentication">
+        <Button onClick={() => setPasswordOpen(true)}>
+          Change password
+        </Button>
+        <p className="mt-2 text-xs text-muted-foreground">
+          You'll need your current password. Changing it doesn't sign you out
+          here.
+        </p>
       </Section>
 
       <Section title="Session">
@@ -224,6 +562,11 @@ function AccountTab() {
           <LogOut className="mr-2 size-4" /> Sign out
         </Button>
       </Section>
+
+      <ChangePasswordDialog
+        open={passwordOpen}
+        onOpenChange={setPasswordOpen}
+      />
     </>
   );
 }

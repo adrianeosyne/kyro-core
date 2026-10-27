@@ -1,7 +1,20 @@
 import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { ArrowLeft, Copy, Loader2, Plus, Trash2, X } from "@/components/icons";
+import {
+  ArrowLeft,
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  Copy,
+  GripVertical,
+  Loader2,
+  Pencil,
+  Plus,
+  Trash2,
+  User,
+  X,
+} from "@/components/icons";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -656,6 +669,7 @@ function RolesTab({
   const createRole = useMutation(api.roles.create);
   const updateRole = useMutation(api.roles.update);
   const deleteRole = useMutation(api.roles.remove);
+  const moveRole = useMutation(api.roles.move);
 
   const [name, setName] = useState("");
   const [color, setColor] = useState(DEFAULT_ROLE_COLORS[0]);
@@ -665,6 +679,10 @@ function RolesTab({
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editPerms, setEditPerms] = useState<string[]>([]);
+  const [editName, setEditName] = useState("");
+  const [editColor, setEditColor] = useState(DEFAULT_ROLE_COLORS[0]);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   const run = async (action: Promise<unknown>, success?: string) => {
     if (busy) return;
@@ -689,71 +707,100 @@ function RolesTab({
     );
   }
 
+  const defaultRole = roles?.find((role) => role.isDefault) ?? null;
+  /** Highest rank first — the top row is the colour members see first. */
+  const ordered = (roles ?? [])
+    .filter((role) => !role.isDefault)
+    .sort((a, b) => b.position - a.position);
+  const editingRole = editingId
+    ? ordered.find((role) => role.id === editingId) ?? null
+    : null;
+
+  const openEdit = (role: { id: string }) => {
+    const source = (roles ?? []).find((entry) => entry.id === role.id);
+    if (!source) return;
+    setEditingId(editingId === source.id ? null : source.id);
+    setEditPerms([...source.permissions]);
+    setEditName(source.name);
+    setEditColor(source.color ?? DEFAULT_ROLE_COLORS[0]);
+  };
+
+  /** Arrow buttons: one rank at a time, straight to the backend. */
+  const nudge = async (index: number, direction: "up" | "down") => {
+    const target = ordered[index];
+    if (!target) return;
+    await run(
+      moveRole({ roleId: target.id as Id<"serverRoles">, direction }),
+      direction === "up" ? "Role moved up." : "Role moved down.",
+    );
+  };
+
+  /** Drag ended: move the row by the whole gap in one mutation. */
+  const drop = async () => {
+    const fromId = dragId;
+    const toId = dragOverId;
+    setDragId(null);
+    setDragOverId(null);
+    if (!fromId || !toId || fromId === toId) return;
+    const from = ordered.findIndex((role) => role.id === fromId);
+    const to = ordered.findIndex((role) => role.id === toId);
+    if (from < 0 || to < 0 || from === to) return;
+    await run(
+      moveRole({
+        roleId: fromId as Id<"serverRoles">,
+        direction: to < from ? "up" : "down",
+        steps: Math.abs(to - from),
+      }),
+      "Role order saved.",
+    );
+  };
+
   return (
     <section className="mt-6 space-y-4">
       <div className="rounded-lg border border-border/60 bg-panel p-5">
-        <h2 className="text-sm font-semibold">Roles</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Roles decide what members can do and how their name is coloured.
-          Higher roles sit below the owner.
-        </p>
-
-        <div className="mt-4 space-y-2">
-          {roles === undefined ? (
-            <p className="text-sm text-muted-foreground">Loading roles…</p>
-          ) : (
-            roles.map((role) => (
-              <div
-                key={role.id}
-                className="flex items-center gap-3 rounded-md border border-border/60 px-3 py-2"
-              >
-                <span
-                  className="size-3 shrink-0 rounded-full"
-                  style={{ background: role.color ?? "#9CA3AF" }}
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">
-                    {role.name}
-                  </span>
-                  <span className="block text-xs text-muted-foreground">
-                    {role.permissions.includes(PERMISSIONS.ADMINISTRATOR)
-                      ? "Administrator"
-                      : `${role.permissions.length} permission${role.permissions.length === 1 ? "" : "s"}`}
-                  </span>
-                </span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setEditingId(editingId === role.id ? null : role.id);
-                    setEditPerms([...role.permissions]);
-                  }}
-                >
-                  Edit
-                </Button>
-                {!role.isDefault && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    aria-label={`Delete ${role.name}`}
-                    onClick={() =>
-                      void run(
-                        deleteRole({ roleId: role.id as Id<"serverRoles"> }),
-                        "Role deleted.",
-                      )
-                    }
-                  >
-                    <Trash2 className="size-4 text-destructive" />
-                  </Button>
-                )}
-              </div>
-            ))
-          )}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold">Roles</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Use roles to group your server members and assign permissions.
+            </p>
+          </div>
+          <Button onClick={() => document.getElementById("role-name")?.focus()}>
+            Create role
+          </Button>
         </div>
 
-        {editingId && (
-          <div className="mt-4 rounded-md border border-primary/40 bg-surface p-4">
-            <h3 className="text-sm font-medium">Edit role permissions</h3>
+        {/* @everyone: the permissions every member holds. */}
+        <button
+          type="button"
+          className="mt-4 flex w-full items-center gap-3 rounded-lg border border-border/60 bg-surface px-3 py-3 text-left transition-colors hover:border-primary/40"
+          onClick={() => defaultRole && openEdit(defaultRole)}
+        >
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-muted-foreground">
+            <User className="size-4" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold">
+              Default permissions
+            </span>
+            <span className="block truncate text-xs text-muted-foreground">
+              @everyone · applies to all server members
+            </span>
+          </span>
+          <ChevronRight
+            className={cn(
+              "size-4 shrink-0 text-muted-foreground transition-transform",
+              editingId === defaultRole?.id && "rotate-90",
+            )}
+          />
+        </button>
+
+        {defaultRole && editingId === defaultRole.id && (
+          <div className="mt-3 rounded-md border border-primary/40 bg-surface p-4">
+            <h3 className="text-sm font-medium">Default permissions</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Every member holds these, even with no roles of their own.
+            </p>
             <div className="mt-3">
               <PermissionToggles
                 value={editPerms}
@@ -774,15 +821,216 @@ function RolesTab({
                 onClick={() =>
                   void run(
                     updateRole({
-                      roleId: editingId as Id<"serverRoles">,
+                      roleId: defaultRole.id as Id<"serverRoles">,
                       permissions: editPerms,
                     }).then(() => setEditingId(null)),
-                    "Role updated.",
+                    "Default permissions updated.",
                   )
                 }
               >
                 Save permissions
               </Button>
+            </div>
+          </div>
+        )}
+
+        <p className="mt-4 text-sm text-muted-foreground">
+          Members use the colour of the highest role they have on this list —
+          the top row wins. Drag a row to align it, or use the arrows.
+        </p>
+
+        {/* Column header, aligned with the rows below. */}
+        <div className="mt-2 flex items-center gap-3 border-b border-border/60 bg-surface/60 px-3 py-2">
+          <span className="w-4" aria-hidden="true" />
+          <span className="size-3" aria-hidden="true" />
+          <span className="flex-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Roles · {ordered.length}
+          </span>
+          <span className="w-16 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Members
+          </span>
+          <span className="w-32" aria-hidden="true" />
+        </div>
+
+        <div className="overflow-hidden rounded-b-lg border-x border-b border-border/60">
+          {roles === undefined ? (
+            <p className="px-3 py-3 text-sm text-muted-foreground">
+              Loading roles…
+            </p>
+          ) : ordered.length === 0 ? (
+            <p className="px-3 py-3 text-sm text-muted-foreground">
+              No roles yet — create the first one below.
+            </p>
+          ) : (
+            ordered.map((role, index) => (
+              <div
+                key={role.id}
+                draggable={!busy}
+                onDragStart={() => setDragId(role.id)}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  if (dragId && dragId !== role.id) setDragOverId(role.id);
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  void drop();
+                }}
+                onDragEnd={() => {
+                  setDragId(null);
+                  setDragOverId(null);
+                }}
+                className={cn(
+                  "flex items-center gap-3 border-b border-border/50 bg-panel px-3 py-2.5 transition-colors last:border-b-0",
+                  dragId === role.id && "opacity-50",
+                  dragOverId === role.id &&
+                    dragId &&
+                    dragId !== role.id &&
+                    "ring-1 ring-inset ring-primary",
+                )}
+              >
+                <GripVertical
+                  aria-hidden="true"
+                  className="size-4 shrink-0 text-muted-foreground/50"
+                />
+                <span
+                  className="size-3 shrink-0 rounded-full"
+                  style={{ background: role.color ?? "#9CA3AF" }}
+                />
+                <span className="block min-w-0 flex-1 truncate text-sm font-semibold">
+                  {role.name}
+                </span>
+                <span className="flex w-16 shrink-0 items-center justify-end gap-1 text-xs text-muted-foreground">
+                  <User className="size-3.5" aria-hidden="true" />
+                  {role.memberCount}
+                </span>
+                <span className="flex w-32 shrink-0 items-center justify-end gap-0.5">
+                  <button
+                    type="button"
+                    aria-label={`Move ${role.name} up`}
+                    disabled={busy || index === 0}
+                    className="rounded p-1 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+                    onClick={() => void nudge(index, "up")}
+                  >
+                    <ChevronUp className="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Move ${role.name} down`}
+                    disabled={busy || index === ordered.length - 1}
+                    className="rounded p-1 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+                    onClick={() => void nudge(index, "down")}
+                  >
+                    <ChevronDown className="size-4" />
+                  </button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="px-1.5 text-xs"
+                    title="Copy role ID"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(role.id);
+                      toast.success("Role ID copied.");
+                    }}
+                  >
+                    ID
+                  </Button>
+                  <button
+                    type="button"
+                    aria-label={`Edit ${role.name}`}
+                    className="rounded p-1 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+                    onClick={() => openEdit(role)}
+                  >
+                    <Pencil className="size-4" />
+                  </button>
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+
+        {editingRole && (
+          <div className="mt-4 rounded-md border border-primary/40 bg-surface p-4">
+            <h3 className="text-sm font-medium">Edit {editingRole.name}</h3>
+            <div className="mt-3 space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-role-name">Role name</Label>
+                <Input
+                  id="edit-role-name"
+                  value={editName}
+                  onChange={(event) => setEditName(event.target.value)}
+                  maxLength={60}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Colour</Label>
+                <div className="flex flex-wrap gap-2">
+                  {DEFAULT_ROLE_COLORS.map((entry) => (
+                    <button
+                      key={entry}
+                      type="button"
+                      aria-label={`Colour ${entry}`}
+                      onClick={() => setEditColor(entry)}
+                      className={cn(
+                        "size-7 rounded-full transition-transform",
+                        editColor === entry
+                          ? "scale-110 ring-2 ring-foreground ring-offset-2 ring-offset-panel"
+                          : "hover:scale-105",
+                      )}
+                      style={{ background: entry }}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="mb-2 text-sm font-medium">Permissions</p>
+                <PermissionToggles
+                  value={editPerms}
+                  onChange={setEditPerms}
+                  allowAdmin={isOwner}
+                />
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <Button
+                variant="ghost"
+                disabled={busy}
+                className="text-destructive hover:text-destructive"
+                onClick={() =>
+                  void run(
+                    deleteRole({
+                      roleId: editingRole.id as Id<"serverRoles">,
+                    }).then(() => setEditingId(null)),
+                    "Role deleted.",
+                  )
+                }
+              >
+                <Trash2 className="mr-1.5 size-4" /> Delete role
+              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => setEditingId(null)}
+                  disabled={busy}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  disabled={busy || editName.trim().length < 2}
+                  onClick={() =>
+                    void run(
+                      updateRole({
+                        roleId: editingRole.id as Id<"serverRoles">,
+                        name: editName.trim(),
+                        color: editColor,
+                        permissions: editPerms,
+                      }).then(() => setEditingId(null)),
+                      "Role updated.",
+                    )
+                  }
+                >
+                  Save role
+                </Button>
+              </div>
             </div>
           </div>
         )}

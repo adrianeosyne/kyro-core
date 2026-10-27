@@ -63,7 +63,7 @@ export function ClaimUsername() {
           <h1 className="text-xl font-semibold tracking-tight">Claim your username</h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
             Your @username is how friends find you and how mentions work. You can
-            change it once every 30 days.
+            change it once every hour.
           </p>
         </div>
 

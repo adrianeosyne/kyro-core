@@ -257,6 +257,7 @@ export function ProfileCard() {
                 <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Clock className="size-3.5" />
                   {new Date(user.memberSince).toLocaleDateString(undefined, {
+                    day: "numeric",
                     month: "long",
                     year: "numeric",
                   })}

@@ -25,7 +25,8 @@ export const currentUser = query({
   },
 });
 
-const USERNAME_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
+/** Users can change their handle once every hour. */
+const USERNAME_COOLDOWN_MS = 60 * 60 * 1000;
 
 /**
  * Full profile for the signed-in account, with the avatar resolved to a
@@ -45,6 +46,7 @@ export const me = query({
       createdAt: user.createdAt ?? null,
       role: user.role ?? null,
       hasUsername: Boolean(user.username),
+      usernameChangedAt: user.usernameChangedAt ?? null,
     };
   },
 });
@@ -66,7 +68,7 @@ export const claimProfile = mutation({
     if (user.username && user.username !== handle) {
       const changedAt = user.usernameChangedAt ?? 0;
       if (Date.now() - changedAt < USERNAME_COOLDOWN_MS) {
-        throw new Error("Usernames can only be changed once every 30 days.");
+        throw new Error("Usernames can only be changed once every hour.");
       }
     }
     const taken = await ctx.db

@@ -109,6 +109,36 @@ export const ArrowRight = (props: IconProps) => (
   </Icon>
 );
 
+export const ChevronUp = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="m6 14.5 6-6 6 6" />
+  </Icon>
+);
+
+export const ChevronDown = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="m6 9.5 6 6 6-6" />
+  </Icon>
+);
+
+export const ChevronRight = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="m9.5 6 6 6-6 6" />
+  </Icon>
+);
+
+/** Six-dot grip used as a drag handle for reorderable rows. */
+export const GripVertical = (props: IconProps) => (
+  <Icon {...props}>
+    <circle cx="9.5" cy="6" r="1.35" fill="currentColor" stroke="none" />
+    <circle cx="14.5" cy="6" r="1.35" fill="currentColor" stroke="none" />
+    <circle cx="9.5" cy="12" r="1.35" fill="currentColor" stroke="none" />
+    <circle cx="14.5" cy="12" r="1.35" fill="currentColor" stroke="none" />
+    <circle cx="9.5" cy="18" r="1.35" fill="currentColor" stroke="none" />
+    <circle cx="14.5" cy="18" r="1.35" fill="currentColor" stroke="none" />
+  </Icon>
+);
+
 /* ------------------------------------------------------------------ */
 /* People & social                                                     */
 /* ------------------------------------------------------------------ */

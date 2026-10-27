@@ -68,7 +68,7 @@ const schema = defineSchema(
       allowFriendRequests: v.optional(v.boolean()),
       showPresence: v.optional(v.boolean()),
       createdAt: v.optional(v.number()),
-      /** Username changes are limited to once every 30 days. */
+      /** Username changes are limited to once every hour. */
       usernameChangedAt: v.optional(v.number()),
       /** External profile links (YouTube, site, portfolio …), max 6. */
       links: v.optional(

@@ -17,10 +17,22 @@ export const list = query({
   handler: async (ctx, { serverId }) => {
     const { id } = await requireUser(ctx);
     await requireServerAccess(ctx, serverId, id);
-    const roles = await ctx.db
-      .query("serverRoles")
-      .withIndex("by_server_position", (q) => q.eq("serverId", serverId))
-      .collect();
+    const [roles, members] = await Promise.all([
+      ctx.db
+        .query("serverRoles")
+        .withIndex("by_server_position", (q) => q.eq("serverId", serverId))
+        .collect(),
+      ctx.db
+        .query("serverMembers")
+        .withIndex("by_server", (q) => q.eq("serverId", serverId))
+        .take(5000),
+    ]);
+    const counts = new Map<string, number>();
+    for (const member of members) {
+      for (const roleId of member.roleIds) {
+        counts.set(roleId, (counts.get(roleId) ?? 0) + 1);
+      }
+    }
     return roles.map((role) => ({
       id: role._id as string,
       name: role.name,
@@ -28,7 +40,82 @@ export const list = query({
       position: role.position,
       isDefault: role.isDefault,
       permissions: role.permissions,
+      // @everyone applies to every member; other roles count actual holders.
+      memberCount: role.isDefault
+        ? members.length
+        : (counts.get(role._id) ?? 0),
     }));
+  },
+});
+
+/**
+ * Align a role: move it up or down past `steps` neighbouring roles in the
+ * rank order (higher position = higher rank). Positions are only ever
+ * swapped between two existing roles, and never with a slot above the
+ * actor's own highest role — mirroring the guards on update/remove — so
+ * reordering can't be used to climb past your own rank.
+ */
+export const move = mutation({
+  args: {
+    roleId: v.id("serverRoles"),
+    direction: v.union(v.literal("up"), v.literal("down")),
+    steps: v.optional(v.number()),
+  },
+  handler: async (ctx, { roleId, direction, steps }) => {
+    const { id } = await requireProfile(ctx);
+    const role = await ctx.db.get(roleId);
+    if (!role) throw new Error("That role doesn't exist.");
+    const access = await requireServerAccess(ctx, role.serverId, id);
+    if (!can(access.permissions, PERMISSIONS.MANAGE_ROLES)) {
+      throw new Error("You don't have permission to manage roles.");
+    }
+    if (role.isDefault) {
+      throw new Error("The @everyone role stays at the bottom.");
+    }
+    const roles = await ctx.db
+      .query("serverRoles")
+      .withIndex("by_server", (q) => q.eq("serverId", role.serverId))
+      .collect();
+    const sorted = [...roles].sort((a, b) => a.position - b.position);
+    const from = sorted.findIndex((entry) => entry._id === roleId);
+    const distance = Math.max(
+      1,
+      Math.min(Math.trunc(steps ?? 1), sorted.length - 1),
+    );
+    // Index 0 belongs to @everyone, so nothing else can move below it.
+    const to =
+      direction === "up"
+        ? Math.min(from + distance, sorted.length - 1)
+        : Math.max(from - distance, 1);
+    if (to === from) return;
+
+    const myTop = await topPosition(ctx, access, roles);
+    const lo = Math.min(from, to);
+    const hi = Math.max(from, to);
+    for (let i = lo; i <= hi; i++) {
+      if (sorted[i].position > myTop) {
+        throw new Error("You can't move a role above your own.");
+      }
+    }
+
+    // Bubble the role into place: adjacent position swaps, one transaction.
+    const step = to > from ? 1 : -1;
+    for (let i = from; i !== to; i += step) {
+      const current = sorted[i];
+      const neighbour = sorted[i + step];
+      const currentPos = current.position;
+      await ctx.db.patch(current._id, { position: neighbour.position });
+      await ctx.db.patch(neighbour._id, { position: currentPos });
+    }
+
+    await logAudit(ctx, {
+      serverId: role.serverId,
+      actorId: id,
+      action: "role.move",
+      targetType: "role",
+      targetId: roleId,
+      details: `${role.name} moved ${direction}`,
+    });
   },
 });
 
