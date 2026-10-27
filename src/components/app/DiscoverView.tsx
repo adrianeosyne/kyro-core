@@ -18,6 +18,7 @@ type Discovery = {
   memberCount: number;
   onlineCount: number;
   createdAt: number;
+  isJoined: boolean;
 };
 
 /**
@@ -163,10 +164,21 @@ function ServerCard({
           <span>Est. {est}</span>
         </div>
 
-        <Button size="sm" className="mt-3 w-full" onClick={() => void joinNow()} disabled={busy}>
-          {busy && <Loader2 className="mr-1.5 size-4 animate-spin" />}
-          Join server
-        </Button>
+        {server.isJoined ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="mt-3 w-full"
+            onClick={() => onOpen(server.id)}
+          >
+            Open
+          </Button>
+        ) : (
+          <Button size="sm" className="mt-3 w-full" onClick={() => void joinNow()} disabled={busy}>
+            {busy && <Loader2 className="mr-1.5 size-4 animate-spin" />}
+            Join server
+          </Button>
+        )}
       </div>
     </article>
   );

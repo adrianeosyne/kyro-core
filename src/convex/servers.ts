@@ -168,9 +168,10 @@ export const discover = query({
 
     return await Promise.all(
       servers
-        .filter((server) => server.isPublic && !joined.has(server._id))
+        .filter((server) => server.isPublic)
         .slice(0, 24)
         .map(async (server) => {
+          const isJoined = joined.has(server._id);
           const [iconUrl, bannerUrl, memberRows] = await Promise.all([
             server.iconStorageId
               ? ctx.storage.getUrl(server.iconStorageId)
@@ -206,6 +207,9 @@ export const discover = query({
             memberCount: memberRows.length,
             onlineCount: online,
             createdAt: server.createdAt,
+            // Joined servers stay listed so cards can offer "Open" instead
+            // of "Join", like the Discover grid does.
+            isJoined,
           };
         }),
     );

@@ -21,15 +21,18 @@ import { Input } from "@/components/ui/input";
 import { PRESENCE_META, formatRelative, type PresenceState } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-type Tab = "online" | "all" | "pending" | "blocked" | "add";
+type Tab = "online" | "all" | "pending" | "blocked" | "suggested" | "add";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "online", label: "Online" },
   { id: "all", label: "All" },
   { id: "pending", label: "Pending" },
   { id: "blocked", label: "Blocked" },
+  { id: "suggested", label: "Suggested" },
   { id: "add", label: "Add friend" },
 ];
+
+const TAB_IDS: Tab[] = ["online", "all", "pending", "blocked", "suggested", "add"];
 
 type PublicUser = {
   id: string;
@@ -43,9 +46,19 @@ type PublicUser = {
 /** The `/dashboard` home: friends, requests and discover-by-username. */
 export function FriendsView() {
   const social = useQuery(api.social.list);
-  const [tab, setTab] = useState<Tab>("online");
   const [params, setParams] = useSearchParams();
+  // The sidebar's "Find people" deep-links to /dashboard?tab=add, so the tab
+  // also lives in the URL.
+  const tabParam = params.get("tab");
+  const [tab, setTab] = useState<Tab>(
+    TAB_IDS.includes(tabParam as Tab) ? (tabParam as Tab) : "online",
+  );
   const pendingCount = (social?.incoming?.length ?? 0) + (social?.outgoing?.length ?? 0);
+
+  useEffect(() => {
+    const fromUrl = params.get("tab");
+    if (fromUrl && TAB_IDS.includes(fromUrl as Tab)) setTab(fromUrl as Tab);
+  }, [params]);
 
   const openProfile = (userId: string) => {
     const next = new URLSearchParams(params);
@@ -102,6 +115,8 @@ export function FriendsView() {
           />
         ) : tab === "blocked" ? (
           <BlockedList blocked={social.blocked} onOpenProfile={openProfile} />
+        ) : tab === "suggested" ? (
+          <SuggestedPanel onOpenProfile={openProfile} />
         ) : (
           <UserList
             users={tab === "online" ? online : friends}
@@ -116,6 +131,95 @@ export function FriendsView() {
         )}
       </div>
     </div>
+  );
+}
+
+/** People you share a community with — one tap to send a friend request. */
+function SuggestedPanel({
+  onOpenProfile,
+}: {
+  onOpenProfile: (userId: string) => void;
+}) {
+  const suggestions = useQuery(api.users.suggest);
+  const sendRequest = useMutation(api.social.sendRequest);
+  const [sent, setSent] = useState<string[]>([]);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  if (suggestions === undefined) {
+    return (
+      <p className="p-8 text-center text-sm text-muted-foreground">Loading…</p>
+    );
+  }
+  if (suggestions.length === 0) {
+    return (
+      <p className="p-8 text-center text-sm text-muted-foreground">
+        No suggestions right now. Join communities in Discover and the people
+        you meet will show up here.
+      </p>
+    );
+  }
+
+  return (
+    <ul className="divide-y divide-border/60">
+      {suggestions.map((user) => {
+        const alreadySent = sent.includes(user.id);
+        return (
+          <li
+            key={user.id}
+            className="flex items-center gap-3 px-6 py-3 transition-colors hover:bg-panel/60"
+          >
+            <button
+              type="button"
+              onClick={() => onOpenProfile(user.id)}
+              className="flex min-w-0 flex-1 items-center gap-3 text-left"
+            >
+              <UserAvatar user={user} size="md" />
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium">
+                  {user.name}
+                </span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  @{user.username ?? "no username"} ·{" "}
+                  {user.presence === "offline" ? "offline" : user.presence}
+                </span>
+              </span>
+            </button>
+            <Button
+              size="sm"
+              variant={alreadySent ? "outline" : "default"}
+              disabled={alreadySent || busyId === user.id}
+              onClick={async () => {
+                if (busyId) return;
+                setBusyId(user.id);
+                try {
+                  await sendRequest({ userId: user.id as Id<"users"> });
+                  setSent((state) => [...state, user.id]);
+                  toast.success(`Friend request sent to ${user.name}.`);
+                } catch (error) {
+                  toast.error(
+                    error instanceof Error
+                      ? error.message
+                      : "Could not send the request.",
+                  );
+                } finally {
+                  setBusyId(null);
+                }
+              }}
+            >
+              {alreadySent ? (
+                <>
+                  <Check className="mr-1.5 size-4" /> Request sent
+                </>
+              ) : (
+                <>
+                  <UserPlus className="mr-1.5 size-4" /> Add friend
+                </>
+              )}
+            </Button>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

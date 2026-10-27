@@ -16,7 +16,7 @@ import {
   Users,
 } from "@/components/icons";
 import { useMemo, useState } from "react";
-import { Link, useMatch, useNavigate } from "react-router";
+import { Link, useMatch, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -476,7 +476,10 @@ function HomeSection() {
   const social = useQuery(api.social.list);
   const me = useQuery(api.users.me);
   const [query, setQuery] = useState("");
+  const [params] = useSearchParams();
+  const [createGroupOpen, setCreateGroupOpen] = useState(false);
   const friendsMatch = useMatch("/dashboard");
+  const findPeopleMatch = params.get("tab") === "add";
   const discoverMatch = useMatch("/dashboard/discover");
 
   const pending = (social?.incoming.length ?? 0) + (social?.outgoing.length ?? 0);
@@ -493,7 +496,7 @@ function HomeSection() {
         to="/dashboard"
         className={cn(
           "mb-1 flex items-center gap-2 rounded-md px-2 py-2 text-sm",
-          friendsMatch
+          friendsMatch && !findPeopleMatch
             ? "bg-sidebar-accent font-medium text-foreground"
             : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
         )}
@@ -506,6 +509,28 @@ function HomeSection() {
           </span>
         )}
       </Link>
+
+      <Link
+        to="/dashboard?tab=add"
+        className={cn(
+          "mb-1 flex items-center gap-2 rounded-md px-2 py-2 text-sm",
+          findPeopleMatch
+            ? "bg-sidebar-accent font-medium text-foreground"
+            : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
+        )}
+      >
+        <Search className="size-4" />
+        Find people
+      </Link>
+
+      <button
+        type="button"
+        onClick={() => setCreateGroupOpen(true)}
+        className="mb-1 flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-foreground"
+      >
+        <UserPlus className="size-4" />
+        Create group
+      </button>
 
       <Link
         to="/dashboard/discover"
@@ -582,6 +607,11 @@ function HomeSection() {
           );
         })
       )}
+
+      <NewConversationDialog
+        open={createGroupOpen}
+        onOpenChange={setCreateGroupOpen}
+      />
     </div>
   );
 }

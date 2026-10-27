@@ -621,3 +621,78 @@ export const usernameAvailable = query({
     return existing === null;
   },
 });
+
+/**
+ * People you may know: members of communities you're in, minus yourself,
+ * existing friends, pending requests in either direction, and anyone you've
+ * blocked (or who blocked you). Powers the Suggested friends tab.
+ * Online members sort first.
+ */
+export const suggest = query({
+  args: {},
+  handler: async (ctx) => {
+    const { id } = await requireUser(ctx);
+
+    const myMemberships = await ctx.db
+      .query("serverMembers")
+      .withIndex("by_user", (q) => q.eq("userId", id))
+      .collect();
+    const perServer = await Promise.all(
+      myMemberships
+        .slice(0, 20)
+        .map((row) =>
+          ctx.db
+            .query("serverMembers")
+            .withIndex("by_server", (q) => q.eq("serverId", row.serverId))
+            .collect(),
+        ),
+    );
+    const candidateIds = new Set<string>();
+    for (const rows of perServer) {
+      for (const row of rows) {
+        if (row.userId !== id) candidateIds.add(row.userId);
+      }
+    }
+
+    const [outgoing, incoming, blocking, blockedBy] = await Promise.all([
+      ctx.db
+        .query("connections")
+        .withIndex("by_requester", (q) => q.eq("requesterId", id))
+        .collect(),
+      ctx.db
+        .query("connections")
+        .withIndex("by_addressee", (q) => q.eq("addresseeId", id))
+        .collect(),
+      ctx.db
+        .query("blocks")
+        .withIndex("by_blocker", (q) => q.eq("blockerId", id))
+        .collect(),
+      ctx.db
+        .query("blocks")
+        .withIndex("by_blocked", (q) => q.eq("blockedId", id))
+        .collect(),
+    ]);
+    const exclude = new Set<string>([
+      ...outgoing.map((row) => row.addresseeId as string),
+      ...incoming.map((row) => row.requesterId as string),
+      ...blocking.map((row) => row.blockedId as string),
+      ...blockedBy.map((row) => row.blockerId as string),
+    ]);
+    for (const blocked of exclude) candidateIds.delete(blocked);
+
+    const users = await hydrateUsers(
+      ctx,
+      [...candidateIds].slice(0, 80) as Id<"users">[],
+      id,
+    );
+    return [...users.values()]
+      .slice(0, 60)
+      .sort((a, b) => {
+        const aOnline = a.presence !== "offline" ? 0 : 1;
+        const bOnline = b.presence !== "offline" ? 0 : 1;
+        if (aOnline !== bOnline) return aOnline - bOnline;
+        return a.name.localeCompare(b.name);
+      })
+      .slice(0, 12);
+  },
+});
