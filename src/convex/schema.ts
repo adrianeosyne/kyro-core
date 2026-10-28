@@ -330,6 +330,37 @@ const schema = defineSchema(
       createdAt: v.number(),
     }).index("by_server", ["serverId", "createdAt"]),
 
+    /**
+     * Platform-wide bans issued from the Admin Portal. A ban blocks every
+     * write action on Kyro (messages, servers, friend requests) until it is
+     * lifted or its expiry passes.
+     */
+    siteBans: defineTable({
+      userId: v.id("users"),
+      bannedById: v.id("users"),
+      reason: v.string(),
+      createdAt: v.number(),
+      /** 0/undefined = permanent. */
+      expiresAt: v.optional(v.number()),
+      liftedAt: v.optional(v.number()),
+      liftedById: v.optional(v.id("users")),
+      liftReason: v.optional(v.string()),
+    })
+      .index("by_user", ["userId"])
+      .index("by_created", ["createdAt"]),
+
+    /** Audit trail for every staff action taken in the Admin Portal. */
+    adminActions: defineTable({
+      actorId: v.id("users"),
+      action: v.string(),
+      targetType: v.optional(v.string()),
+      targetId: v.optional(v.string()),
+      details: v.optional(v.string()),
+      createdAt: v.number(),
+    })
+      .index("by_created", ["createdAt"])
+      .index("by_actor", ["actorId"]),
+
     notifications: defineTable({
       userId: v.id("users"),
       type: v.union(

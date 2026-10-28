@@ -168,7 +168,9 @@ export const resolve = mutation({
     const { id, user } = await requireUser(ctx);
     const report = await ctx.db.get(reportId);
     if (!report) throw new Error("That report no longer exists.");
-    let allowed = user.role === "admin";
+    // Site staff handle the platform-wide queue; community staff still need
+    // permissions inside the community the report belongs to.
+    let allowed = user.role === "admin" || user.siteModerator === true;
     if (!allowed && report.serverId) {
       const access = await requireServerAccess(ctx, report.serverId, id);
       allowed =

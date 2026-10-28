@@ -351,45 +351,136 @@ export function ServerSettings({ serverId }: { serverId: string }) {
     }
   };
 
+  const activeEntry = visibleTabs.find((entry) => entry.id === activeTab);
+
   return (
-    <div className="h-full overflow-y-auto bg-surface">
-      <div className="mx-auto max-w-3xl px-6 py-8">
-        <button
-          type="button"
-          onClick={() => navigate(`/dashboard/s/${serverId}`)}
-          className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" /> Back to {server.name}
-        </button>
-
-        <h1 className="text-xl font-semibold">Server settings</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {server.memberCount} members ·{" "}
-          {server.isOwner ? "You own this server" : "You can manage this server"}
-        </p>
-
-        {visibleTabs.length > 0 && (
-          <div className="mt-5 flex gap-1 overflow-x-auto border-b border-border/60 pb-px">
-            {visibleTabs.map((entry) => (
-              <button
-                key={entry.id}
-                type="button"
-                onClick={() => setTab(entry.id)}
-                className={cn(
-                  "shrink-0 rounded-t-md px-3 py-2 text-sm transition-colors",
-                  activeTab === entry.id
-                    ? "bg-panel font-medium text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {entry.label}
-              </button>
-            ))}
-          </div>
+    <div className="h-full overflow-y-auto bg-background">
+      {/* Community hero: identity, live numbers and the way back. */}
+      <div className="relative overflow-hidden border-b border-border/60">
+        <div
+          aria-hidden
+          className="absolute inset-0 bg-gradient-to-r from-brand/20 via-transparent to-cyan/15"
+        />
+        {server.bannerUrl && (
+          <img
+            src={server.bannerUrl}
+            alt=""
+            className="absolute inset-0 size-full object-cover opacity-30"
+          />
         )}
+        <div className="relative mx-auto max-w-5xl px-4 py-4 sm:px-6">
+          <button
+            type="button"
+            onClick={() => navigate(`/dashboard/s/${serverId}`)}
+            className="mb-3 flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="size-3.5" /> Back to {server.name}
+          </button>
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-brand to-cyan text-lg font-bold text-white shadow-md">
+              {server.iconUrl ? (
+                <img src={server.iconUrl} alt="" className="size-full object-cover" />
+              ) : (
+                server.name.slice(0, 2).toUpperCase()
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="truncate text-xl font-semibold leading-tight">
+                  {server.name}
+                </h1>
+                {server.tag && (
+                  <span className="rounded border border-border/70 bg-panel px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    {server.tag}
+                  </span>
+                )}
+                <span
+                  className={cn(
+                    "rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                    server.locked
+                      ? "border-destructive/40 bg-destructive/10 text-destructive"
+                      : "border-border/70 text-muted-foreground",
+                  )}
+                >
+                  {server.locked ? "Locked" : server.isPublic ? "Public" : "Private"}
+                </span>
+              </div>
+              <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <span className="size-1.5 rounded-full bg-success" />
+                  {server.onlineCount} online
+                </span>
+                <span className="flex items-center gap-1">
+                  <User className="size-3.5" /> {server.memberCount} members
+                </span>
+                <span>
+                  {server.isOwner
+                    ? "You own this community"
+                    : "You can manage this community"}
+                </span>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mx-auto flex max-w-5xl gap-6 px-4 py-6 sm:px-6">
+        {/* Section rail */}
+        <nav className="hidden w-52 shrink-0 flex-col gap-1 md:flex">
+          <p className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {activeEntry?.label ?? "Settings"}
+          </p>
+          {visibleTabs.map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              onClick={() => setTab(entry.id)}
+              className={cn(
+                "flex items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-sm transition-colors",
+                activeTab === entry.id
+                  ? "border-border/70 bg-surface font-medium text-foreground shadow-sm"
+                  : "border-transparent text-muted-foreground hover:bg-surface/60 hover:text-foreground",
+              )}
+            >
+              <span
+                className={cn(
+                  "size-1.5 rounded-full",
+                  entry.id === "danger"
+                    ? "bg-destructive"
+                    : activeTab === entry.id
+                      ? "bg-brand"
+                      : "bg-border",
+                )}
+              />
+              {entry.label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="min-w-0 flex-1">
+          {/* Mobile section picker */}
+          {visibleTabs.length > 0 && (
+            <div className="mb-4 flex gap-1 overflow-x-auto md:hidden">
+              {visibleTabs.map((entry) => (
+                <button
+                  key={entry.id}
+                  type="button"
+                  onClick={() => setTab(entry.id)}
+                  className={cn(
+                    "shrink-0 rounded-full border px-3 py-1.5 text-xs transition-colors",
+                    activeTab === entry.id
+                      ? "border-brand/40 bg-brand/10 font-medium text-foreground"
+                      : "border-border/70 text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {entry.label}
+                </button>
+              ))}
+            </div>
+          )}
 
         {activeTab === "overview" && (
-          <section className="mt-6 rounded-lg border border-border/60 bg-panel p-5">
+          <section className="rounded-xl border border-border/70 bg-panel p-5">
             <h2 className="text-sm font-semibold">Images</h2>
             <div className="mt-4 flex flex-wrap items-center gap-4">
               <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-brand to-cyan text-sm font-bold text-white">
@@ -904,7 +995,7 @@ export function ServerSettings({ serverId }: { serverId: string }) {
         )}
 
         {activeTab === "invites" && (
-          <section className="mt-6 rounded-lg border border-border/60 bg-panel p-5">
+          <section className="rounded-xl border border-border/70 bg-panel p-5">
             <h2 className="text-sm font-semibold">Invite links</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Create invite links with expiry and use limits, then share them
@@ -939,7 +1030,7 @@ export function ServerSettings({ serverId }: { serverId: string }) {
         {activeTab === "audit" && <AuditTab serverId={serverId} />}
 
         {activeTab === "danger" && server.isOwner && (
-          <section className="mt-6 rounded-lg border border-destructive/40 bg-panel p-5">
+          <section className="rounded-xl border border-destructive/40 bg-panel p-5">
             <h2 className="text-sm font-semibold text-destructive">
               Delete server
             </h2>
@@ -967,10 +1058,11 @@ export function ServerSettings({ serverId }: { serverId: string }) {
         )}
 
         {visibleTabs.length === 0 && (
-          <p className="mt-6 rounded-md border border-border/60 bg-panel p-4 text-sm text-muted-foreground">
+          <p className="rounded-xl border border-border/60 bg-panel p-4 text-sm text-muted-foreground">
             You don't have permission to manage this server.
           </p>
         )}
+        </div>
       </div>
     </div>
   );
@@ -1076,7 +1168,7 @@ function RolesTab({
 
   if (!canManageRoles) {
     return (
-      <section className="mt-6 rounded-lg border border-border/60 bg-panel p-5 text-sm text-muted-foreground">
+      <section className="rounded-xl border border-border/70 bg-panel p-5 text-sm text-muted-foreground">
         You don't have permission to manage roles.
       </section>
     );
@@ -1513,7 +1605,7 @@ function BansTab({ serverId }: { serverId: string }) {
   const unban = useMutation(api.servers.unban);
 
   return (
-    <section className="mt-6 rounded-lg border border-border/60 bg-panel p-5">
+    <section className="rounded-xl border border-border/70 bg-panel p-5">
       <h2 className="text-sm font-semibold">Bans</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         Banned members can't rejoin until you lift the ban.
@@ -1576,7 +1668,7 @@ function AuditTab({ serverId }: { serverId: string }) {
   });
 
   return (
-    <section className="mt-6 rounded-lg border border-border/60 bg-panel p-5">
+    <section className="rounded-xl border border-border/70 bg-panel p-5">
       <h2 className="text-sm font-semibold">Audit log</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         The last 60 administrative actions in this server.
@@ -1651,14 +1743,14 @@ function ChannelsTab({
 
   if (!canManage) {
     return (
-      <section className="mt-6 rounded-lg border border-border/60 bg-panel p-5 text-sm text-muted-foreground">
+      <section className="rounded-xl border border-border/70 bg-panel p-5 text-sm text-muted-foreground">
         You don't have permission to manage channels.
       </section>
     );
   }
   if (!channels) {
     return (
-      <section className="mt-6 rounded-lg border border-border/60 bg-panel p-5 text-sm text-muted-foreground">
+      <section className="rounded-xl border border-border/70 bg-panel p-5 text-sm text-muted-foreground">
         Loading channels…
       </section>
     );
@@ -1732,7 +1824,7 @@ function ChannelsTab({
   }
 
   return (
-    <section className="mt-6 rounded-lg border border-border/60 bg-panel p-5">
+    <section className="rounded-xl border border-border/70 bg-panel p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold">Channels</h2>
@@ -2011,7 +2103,7 @@ function ThemeTab({
   };
 
   return (
-    <section className="mt-6 rounded-lg border border-border/60 bg-panel p-5">
+    <section className="rounded-xl border border-border/70 bg-panel p-5">
       <h2 className="text-base font-semibold">Theme</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         Give your server its own colours. Everyone sees them while they're
@@ -2150,7 +2242,7 @@ function MembersTab({
     );
 
   return (
-    <section className="mt-6 rounded-lg border border-border/60 bg-panel p-5">
+    <section className="rounded-xl border border-border/70 bg-panel p-5">
       <h2 className="text-base font-semibold">
         Members
         {members
@@ -2434,7 +2526,7 @@ function ReportsTab() {
   const isAdmin = me?.role === "admin";
 
   return (
-    <section className="mt-6 rounded-lg border border-border/60 bg-panel p-5">
+    <section className="rounded-xl border border-border/70 bg-panel p-5">
       <h2 className="text-base font-semibold">Reports</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         People and messages reported in this community. Resolve them with a

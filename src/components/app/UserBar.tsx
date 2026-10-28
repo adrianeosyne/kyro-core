@@ -1,5 +1,12 @@
 import { useMutation, useQuery } from "convex/react";
-import { Circle, LogOut, Settings, User, Volume2, VolumeX } from "@/components/icons";
+import {
+  LogOut,
+  Settings,
+  ShieldCheck,
+  User,
+  Volume2,
+  VolumeX,
+} from "@/components/icons";
 import { api } from "@/convex/_generated/api";
 import { UserAvatar } from "@/components/app/UserAvatar";
 import { CrownBadge } from "@/components/app/CrownBadge";
@@ -16,16 +23,40 @@ import {
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useUiStore, type StatusChoice } from "@/lib/store";
-import { cn } from "@/lib/utils";
 import { useState } from "react";
-import { useSearchParams } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 
-const STATUS_OPTIONS: { value: StatusChoice; label: string; dot: string }[] = [
-  { value: "online", label: "Online", dot: "bg-success" },
-  { value: "idle", label: "Idle", dot: "bg-warning" },
-  { value: "dnd", label: "Do not disturb", dot: "bg-destructive" },
-  { value: "invisible", label: "Invisible", dot: "bg-muted-foreground" },
+const STATUS_OPTIONS: {
+  value: StatusChoice;
+  label: string;
+  hint: string;
+  color: string;
+}[] = [
+  {
+    value: "online",
+    label: "Online",
+    hint: "Everyone sees you as available.",
+    color: "#22c55e",
+  },
+  {
+    value: "idle",
+    label: "Idle",
+    hint: "Away from the keyboard.",
+    color: "#f59e0b",
+  },
+  {
+    value: "dnd",
+    label: "Do not disturb",
+    hint: "You're here, but please don't ping.",
+    color: "#ef4444",
+  },
+  {
+    value: "invisible",
+    label: "Invisible",
+    hint: "Appear offline to everyone else.",
+    color: "#94a3b8",
+  },
 ];
 
 /** Bottom-of-sidebar panel: who you are, your presence and settings.
@@ -42,8 +73,14 @@ export function UserBar({ onOpenSettings }: { onOpenSettings?: () => void }) {
   const notificationSounds = useUiStore((state) => state.notificationSounds);
   const setPreference = useUiStore((state) => state.setPreference);
   const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
 
   if (!me) return null;
+
+  const isStaff =
+    me.role === "admin" ||
+    me.isFounder ||
+    me.badges.includes("moderator");
 
   const ownsServer = (servers ?? []).some((server) => server.isOwner);
 
@@ -62,7 +99,10 @@ export function UserBar({ onOpenSettings }: { onOpenSettings?: () => void }) {
 
   return (
     <div className="border-t border-border/60 bg-sidebar p-2">
-      <DropdownMenu>
+      {/* Non-modal so closing the status menu never leaves an invisible
+          pointer-events guard behind — that guard is what forced a second
+          click before the chat box accepted focus. */}
+      <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
           <button className="flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left hover:bg-sidebar-accent/70">
             <UserAvatar user={me} size="sm" />
@@ -80,7 +120,10 @@ export function UserBar({ onOpenSettings }: { onOpenSettings?: () => void }) {
                   <CrownBadge label="Server owner" />
                 ) : null}
                 {me.serverTag && (
-                  <span className="shrink-0 rounded border border-border/70 px-1 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+                  <span
+                    title={`Community tag “${me.serverTag}” — shown next to your name everywhere on Kyro.`}
+                    className="shrink-0 cursor-help rounded border border-border/70 bg-surface px-1 py-px text-[9px] font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+                  >
                     {me.serverTag}
                   </span>
                 )}
@@ -92,26 +135,53 @@ export function UserBar({ onOpenSettings }: { onOpenSettings?: () => void }) {
             <Settings className="size-4 shrink-0 text-muted-foreground" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" side="top" className="w-64">
-          <DropdownMenuLabel className="text-xs text-muted-foreground">
+        <DropdownMenuContent
+          align="start"
+          side="top"
+          className="w-72"
+          onCloseAutoFocus={(event) => event.preventDefault()}
+          // Keep keystrokes inside the draft field from driving menu typeahead
+          // or stealing focus away mid-sentence.
+          onKeyDown={(event) => event.stopPropagation()}
+        >
+          <DropdownMenuLabel className="flex items-center justify-between text-xs text-muted-foreground">
             Set status
+            <span className="font-normal normal-case text-muted-foreground/70">
+              {me.presence === "invisible" ? "Hidden" : "Visible"}
+            </span>
           </DropdownMenuLabel>
-          {STATUS_OPTIONS.map((option) => (
-            <DropdownMenuItem
-              key={option.value}
-              onClick={() =>
-                void setPresence({ status: option.value }).catch((error) =>
-                  console.error(error),
-                )
-              }
-            >
-              <Circle className={cn("size-3 fill-current", option.dot)} />
-              {option.label}
-              {me.presence === option.value && (
-                <span className="ml-auto text-xs text-primary">✓</span>
-              )}
-            </DropdownMenuItem>
-          ))}
+          {STATUS_OPTIONS.map((option) => {
+            const active = me.presence === option.value;
+            return (
+              <DropdownMenuItem
+                key={option.value}
+                className="gap-2"
+                onSelect={(event) => {
+                  event.preventDefault();
+                  void setPresence({ status: option.value }).catch((error) =>
+                    console.error(error),
+                  );
+                }}
+              >
+                <span
+                  aria-hidden
+                  className="size-2.5 shrink-0 rounded-full ring-2 ring-inset ring-black/10"
+                  style={{ backgroundColor: option.color }}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm leading-tight">
+                    {option.label}
+                  </span>
+                  <span className="block truncate text-[11px] leading-tight text-muted-foreground">
+                    {option.hint}
+                  </span>
+                </span>
+                {active && (
+                  <span className="shrink-0 text-xs text-primary">✓</span>
+                )}
+              </DropdownMenuItem>
+            );
+          })}
           <DropdownMenuSeparator />
           <div className="px-2 py-1.5">
             <form
@@ -124,18 +194,39 @@ export function UserBar({ onOpenSettings }: { onOpenSettings?: () => void }) {
               <Input
                 value={statusDraft}
                 onChange={(event) => setStatusDraft(event.target.value)}
+                onKeyDown={(event) => event.stopPropagation()}
                 placeholder="Set a custom status"
                 maxLength={100}
-                className="h-7 text-xs"
+                className="h-8 text-xs"
                 aria-label="Custom status"
               />
               <button
                 type="submit"
-                className="shrink-0 rounded-md border border-border/70 px-2 py-1 text-xs text-muted-foreground hover:bg-surface hover:text-foreground"
+                className="shrink-0 rounded-md border border-border/70 px-2 py-1.5 text-xs text-muted-foreground hover:bg-surface hover:text-foreground"
               >
                 Save
               </button>
             </form>
+            {me.customStatus && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusDraft("");
+                  void updateProfile({ customStatus: "" })
+                    .then(() => toast.success("Custom status cleared"))
+                    .catch((error) =>
+                      toast.error(
+                        error instanceof Error
+                          ? error.message
+                          : "Could not clear your status.",
+                      ),
+                    );
+                }}
+                className="mt-1 text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              >
+                Clear current status
+              </button>
+            )}
           </div>
           <DropdownMenuSeparator />
           <DropdownMenuItem
@@ -173,6 +264,14 @@ export function UserBar({ onOpenSettings }: { onOpenSettings?: () => void }) {
           <DropdownMenuItem onClick={onOpenSettings}>
             <Settings className="size-4" /> User settings
           </DropdownMenuItem>
+          {isStaff && (
+            <DropdownMenuItem
+              className="text-brand focus:text-brand"
+              onClick={() => navigate("/dashboard/admin")}
+            >
+              <ShieldCheck className="size-4" /> Admin portal
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onClick={() => void signOut()}>
             <LogOut className="size-4" /> Sign out
           </DropdownMenuItem>

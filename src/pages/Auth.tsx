@@ -287,10 +287,11 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
                       <button
                         type="button"
                         onClick={() => setShowPassword((v) => !v)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        className="absolute inset-y-0 right-0 z-10 flex w-9 items-center justify-center rounded-r-md text-muted-foreground transition-colors hover:text-foreground"
                         aria-label={
                           showPassword ? "Hide password" : "Show password"
                         }
+                        aria-pressed={showPassword}
                       >
                         {showPassword ? (
                           <EyeOff className="size-4" />
@@ -393,8 +394,9 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
                     <div className="relative">
                       <Input
                         id="password-input"
-                        type="password"
+                        type={showPassword ? "text" : "password"}
                         placeholder="Min. 8 characters"
+                        className="pr-10"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         disabled={isLoading}
@@ -404,8 +406,9 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
                       <button
                         type="button"
                         onClick={() => setShowPassword((v) => !v)}
-                        className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        className="absolute inset-y-0 right-0 z-10 flex w-10 items-center justify-center rounded-r-md text-muted-foreground transition-colors hover:text-foreground"
                         aria-label={showPassword ? "Hide password" : "Show password"}
+                        aria-pressed={showPassword}
                       >
                         {showPassword ? (
                           <EyeOff className="size-4" />
@@ -420,7 +423,7 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
                     <Label htmlFor="confirm-password">Confirm password</Label>
                     <Input
                       id="confirm-password"
-                      type="password"
+                      type={showPassword ? "text" : "password"}
                       placeholder="Re-enter password"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}

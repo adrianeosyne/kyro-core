@@ -13,6 +13,7 @@ import {
   Plus,
   Search,
   Settings,
+  ShieldCheck,
   UserPlus,
   Users,
 } from "@/components/icons";
@@ -486,6 +487,7 @@ function HomeSection() {
   const friendsMatch = useMatch("/dashboard");
   const findPeopleMatch = params.get("tab") === "add";
   const discoverMatch = useMatch("/dashboard/discover");
+  const adminMatch = useMatch("/dashboard/admin");
 
   const pending = (social?.incoming.length ?? 0) + (social?.outgoing.length ?? 0);
   const filtered = (conversations ?? []).filter((conversation) => {
@@ -549,6 +551,24 @@ function HomeSection() {
         <Compass className="size-4" />
         Discover
       </Link>
+
+      {me &&
+        (me.role === "admin" ||
+          me.isFounder ||
+          me.badges.includes("moderator")) && (
+          <Link
+            to="/dashboard/admin"
+            className={cn(
+              "mb-1 flex items-center gap-2 rounded-md px-2 py-2 text-sm",
+              adminMatch
+                ? "bg-brand/15 font-medium text-brand"
+                : "text-brand/90 hover:bg-brand/10 hover:text-brand",
+            )}
+          >
+            <ShieldCheck className="size-4" />
+            Admin Portal
+          </Link>
+        )}
 
       <div className="mt-5 mb-1 flex items-center justify-between px-2">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">

@@ -162,6 +162,7 @@ export function GlobalBadgeIcon({
       aria-hidden="true"
       focusable="false"
       className={cn("size-4 shrink-0", className)}
+      style={{ filter: "drop-shadow(0 1px 1.5px rgba(0,0,0,0.28))" }}
     >
       <defs>
         {badge === "admin" && (
@@ -346,7 +347,7 @@ export function GlobalBadgeIcon({
           {/* rocket */}
           <path
             d="M12 3.4c2.9 2.2 4.3 5.3 4.3 8.7l-1.7 3.1H9.4l-1.7-3.1c0-3.4 1.4-6.5 4.3-8.7Z"
-            fill={`url(#${gradientId})}`}
+            fill={`url(#${gradientId})`}
             stroke="#115e59"
             strokeWidth="0.9"
             strokeLinejoin="round"
@@ -354,7 +355,7 @@ export function GlobalBadgeIcon({
           <circle cx="12" cy="9.6" r="1.9" fill="#ffffff" fillOpacity="0.85" />
           <path
             d="M7.7 11.4 5.4 14.8l2.8-.7M16.3 11.4l2.3 3.4-2.8-.7"
-            fill={`url(#${gradientId})}`}
+            fill={`url(#${gradientId})`}
             stroke="#115e59"
             strokeWidth="0.8"
             strokeLinejoin="round"
@@ -371,6 +372,19 @@ export function GlobalBadgeIcon({
             strokeLinecap="round"
           />
         </>
+      )}
+
+      {/* Shared gloss: a soft highlight arc that makes every badge read as a
+          single, coherent icon family instead of six unrelated drawings. */}
+      {badge !== "bughunter" && (
+        <path
+          d="M6.2 8.4a7.6 7.6 0 0 1 5.6-4.4"
+          fill="none"
+          stroke="#ffffff"
+          strokeOpacity="0.5"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+        />
       )}
     </svg>
   );

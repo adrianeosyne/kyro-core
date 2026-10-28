@@ -14,7 +14,7 @@ import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { UserAvatar } from "@/components/app/UserAvatar";
+import { PresenceDot, UserAvatar } from "@/components/app/UserAvatar";
 import {
   GlobalBadgeIcon,
   GlobalBadges,
@@ -63,6 +63,8 @@ export function ProfileCard() {
   const unblock = useMutation(api.social.unblock);
   const createDirect = useMutation(api.conversations.createDirect);
   const setBadges = useMutation(api.users.setBadges);
+  const removeAdminBadge = useMutation(api.users.removeMyAdminBadge);
+  const restoreAdminBadge = useMutation(api.admin.restoreMyAdminBadge);
   const warn = useMutation(api.warnings.warn);
   const [warnReason, setWarnReason] = useState("");
 
@@ -138,7 +140,10 @@ export function ProfileCard() {
                       primaryBadge={user.primaryBadge}
                     />
                     {user.serverTag && (
-                      <span className="shrink-0 rounded border border-border/70 px-1 py-px text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      <span
+                        title={`Community tag “${user.serverTag}” — ${user.name} wears it next to their name everywhere on Kyro.`}
+                        className="shrink-0 cursor-help rounded border border-border/70 bg-surface px-1 py-px text-[10px] font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+                      >
                         {user.serverTag}
                       </span>
                     )}
@@ -155,8 +160,10 @@ export function ProfileCard() {
           </DialogTitle>
           {user && presenceMeta && (
             <DialogDescription className="flex items-center gap-1.5">
-              <span
-                className={`inline-block size-2 rounded-full ${presenceMeta.dot}`}
+              <PresenceDot
+                presence={user.presence}
+                size="xs"
+                ringClassName=""
               />
               {user.customStatus || presenceMeta.label}
               {user.lastSeen != null && (
@@ -197,6 +204,34 @@ export function ProfileCard() {
                 Global badges
               </p>
               <GlobalBadges badges={user.badges} className="mt-2" />
+              {isSelf && me?.isFounder && (
+                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-2.5">
+                  <p className="min-w-0 flex-1 text-[11px] text-muted-foreground">
+                    Founder only: your Admin badge can be hidden from this
+                    profile. Staff powers stay active either way.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => {
+                      const holdsAdmin = user.badges.includes("admin");
+                      void run(
+                        holdsAdmin
+                          ? removeAdminBadge({})
+                          : restoreAdminBadge({}),
+                        holdsAdmin
+                          ? "Admin badge hidden from your profile."
+                          : "Admin badge restored.",
+                      );
+                    }}
+                  >
+                    {user.badges.includes("admin")
+                      ? "Hide Admin badge"
+                      : "Restore Admin badge"}
+                  </Button>
+                </div>
+              )}
 
               {canManageBadges && (
                 <div className="mt-3 border-t border-border/60 pt-3">
@@ -206,6 +241,9 @@ export function ProfileCard() {
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
                     {GRANTABLE_BADGES.map((badge) => {
                       const granted = user.badges.includes(badge);
+                      // Badge id → setBadges argument name (bughunter → bugHunter).
+                      const field: "admin" | "moderator" | "verified" | "bugHunter" | "vip" | "og" =
+                        badge === "bughunter" ? "bugHunter" : badge;
                       return (
                         <button
                           key={badge}
@@ -220,7 +258,7 @@ export function ProfileCard() {
                             void run(
                               setBadges({
                                 userId: userId as Id<"users">,
-                                [badge]: !granted,
+                                [field]: !granted,
                               }),
                               granted
                                 ? `${GLOBAL_BADGE_META[badge].label} badge removed.`

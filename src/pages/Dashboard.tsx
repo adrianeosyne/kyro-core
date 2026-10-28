@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useParams } from "react-router";
 import { Hash, Loader2 } from "@/components/icons";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { AdminPortal } from "@/components/app/AdminPortal";
 import { AppShell } from "@/components/app/AppShell";
 import { ChannelChat, DirectChat } from "@/components/app/ChatView";
 import { DiscoverView } from "@/components/app/DiscoverView";
@@ -20,6 +21,9 @@ export default function Dashboard() {
       <Routes>
         <Route index element={<FriendsView />} />
         <Route path="discover" element={<DiscoverView />} />
+        {/* Staff console — admins and moderators sign in with their Kyro
+            account; the page itself gates access server-side. */}
+        <Route path="admin" element={<AdminPortal />} />
         <Route path="dm" element={<Navigate to="/dashboard" replace />} />
         <Route path="dm/:conversationId" element={<DirectChatRoute />} />
         <Route path="s/:serverId" element={<ServerIndexRoute />} />

@@ -1,0 +1,1218 @@
+import { useMutation, useQuery } from "convex/react";
+import {
+  AlertTriangle,
+  Ban,
+  Check,
+  Clock,
+  Hash,
+  Loader2,
+  Search,
+  Shield,
+  ShieldAlert,
+  ShieldCheck,
+  Trash2,
+  Users,
+  Wrench,
+  X,
+} from "@/components/icons";
+import { useState } from "react";
+import { useNavigate } from "react-router";
+import { toast } from "sonner";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
+import {
+  GLOBAL_BADGE_META,
+  GlobalBadgeIcon,
+  type GlobalBadgeKey,
+} from "@/components/app/GlobalBadges";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+
+type AdminTab =
+  | "overview"
+  | "badges"
+  | "reports"
+  | "bugs"
+  | "bans"
+  | "warnings"
+  | "activity";
+
+const TABS: { id: AdminTab; label: string; icon: typeof ShieldCheck }[] = [
+  { id: "overview", label: "Overview", icon: ShieldCheck },
+  { id: "badges", label: "Badges", icon: Shield },
+  { id: "reports", label: "Reports", icon: AlertTriangle },
+  { id: "bugs", label: "Bugs", icon: Wrench },
+  { id: "bans", label: "Bans", icon: Ban },
+  { id: "warnings", label: "Warnings", icon: ShieldAlert },
+  { id: "activity", label: "Activity", icon: Clock },
+];
+
+/** Badge ids that can be granted from the portal, with their mutation key. */
+type GrantableBadgeId =
+  | "admin"
+  | "moderator"
+  | "verified"
+  | "bughunter"
+  | "vip"
+  | "og";
+
+const BADGE_FIELDS: {
+  id: GrantableBadgeId;
+  field: "admin" | "moderator" | "verified" | "bugHunter" | "vip" | "og";
+}[] = [
+  { id: "admin", field: "admin" },
+  { id: "moderator", field: "moderator" },
+  { id: "verified", field: "verified" },
+  { id: "bughunter", field: "bugHunter" },
+  { id: "vip", field: "vip" },
+  { id: "og", field: "og" },
+];
+
+function timeAgo(timestamp: number): string {
+  const diff = Date.now() - timestamp;
+  if (diff < 60_000) return "just now";
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  return `${Math.floor(diff / 86_400_000)}d ago`;
+}
+
+/**
+ * Kyro Admin Portal (`/dashboard/admin`).
+ *
+ * Signed-in staff — admins by role, moderators by badge — get badge
+ * management, the report queue for users/messages/servers, bug triage,
+ * platform bans, warnings and a full staff audit trail.
+ */
+export function AdminPortal() {
+  const data = useQuery(api.admin.overview);
+  const [tab, setTab] = useState<AdminTab>("overview");
+  const navigate = useNavigate();
+
+  if (data === undefined) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!data.allowed) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
+        <span className="flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+          <ShieldAlert className="size-6" />
+        </span>
+        <p className="text-lg font-semibold">Staff only</p>
+        <p className="max-w-sm text-sm text-muted-foreground">
+          The Admin Portal is available to Kyro admins and moderators. Sign in
+          with a staff Kyro account to continue.
+        </p>
+        <Button variant="outline" onClick={() => navigate("/dashboard")}>
+          Back to Kyro
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-background">
+      {/* Portal header */}
+      <div className="relative shrink-0 overflow-hidden border-b border-border/60">
+        <div
+          aria-hidden
+          className="absolute inset-0 bg-gradient-to-r from-brand/20 via-transparent to-cyan/15"
+        />
+        <div className="relative flex flex-wrap items-center gap-3 px-5 py-4">
+          <span className="flex size-10 items-center justify-center rounded-xl bg-brand/15 text-brand ring-1 ring-brand/30">
+            <ShieldCheck className="size-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brand">
+              Kyro Staff
+            </p>
+            <h1 className="truncate text-lg font-semibold leading-tight">
+              Admin Portal
+            </h1>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {data.me.isFounder && <RolePill label="Founder" tone="brand" />}
+            {data.me.isAdmin && <RolePill label="Admin" tone="rose" />}
+            {data.me.isModerator && <RolePill label="Moderator" tone="emerald" />}
+          </div>
+        </div>
+        <nav className="relative flex gap-1 overflow-x-auto px-3 pb-2">
+          {TABS.map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              onClick={() => setTab(entry.id)}
+              className={cn(
+                "flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors",
+                tab === entry.id
+                  ? "bg-surface font-medium text-foreground shadow-sm ring-1 ring-border/70"
+                  : "text-muted-foreground hover:bg-surface/60 hover:text-foreground",
+              )}
+            >
+              <entry.icon className="size-4" />
+              {entry.label}
+              {entry.id === "reports" && data.counts.openReports > 0 && (
+                <span className="ml-0.5 rounded-full bg-destructive px-1.5 text-[10px] font-bold text-white">
+                  {data.counts.openReports}
+                </span>
+              )}
+              {entry.id === "bugs" && data.counts.openBugs > 0 && (
+                <span className="ml-0.5 rounded-full bg-warning px-1.5 text-[10px] font-bold text-black/80">
+                  {data.counts.openBugs}
+                </span>
+              )}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto p-5">
+        {tab === "overview" && <OverviewTab data={data} />}
+        {tab === "badges" && <BadgesTab isAdmin={data.me.isAdmin} />}
+        {tab === "reports" && <ReportsTab isAdmin={data.me.isAdmin} />}
+        {tab === "bugs" && (
+          <BugsTab
+            isAdmin={data.me.isAdmin}
+            canTriage={data.me.isAdmin || data.me.isModerator}
+          />
+        )}
+        {tab === "bans" && <BansTab />}
+        {tab === "warnings" && <WarningsTab />}
+        {tab === "activity" && <ActivityTab />}
+      </div>
+    </div>
+  );
+}
+
+function RolePill({
+  label,
+  tone,
+}: {
+  label: string;
+  tone: "brand" | "rose" | "emerald";
+}) {
+  const tones = {
+    brand: "border-brand/40 bg-brand/10 text-brand",
+    rose: "border-destructive/40 bg-destructive/10 text-destructive",
+    emerald: "border-success/40 bg-success/10 text-success",
+  } as const;
+  return (
+    <span
+      className={cn(
+        "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+        tones[tone],
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  hint,
+  icon: Icon,
+  tone = "brand",
+}: {
+  label: string;
+  value: number | string;
+  hint?: string;
+  icon: typeof Users;
+  tone?: "brand" | "rose" | "emerald" | "amber";
+}) {
+  const tones = {
+    brand: "bg-brand/10 text-brand",
+    rose: "bg-destructive/10 text-destructive",
+    emerald: "bg-success/10 text-success",
+    amber: "bg-warning/10 text-warning",
+  } as const;
+  return (
+    <div className="rounded-xl border border-border/70 bg-surface p-4">
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {label}
+        </p>
+        <span className={cn("rounded-md p-1.5", tones[tone])}>
+          <Icon className="size-4" />
+        </span>
+      </div>
+      <p className="mt-2 text-2xl font-semibold tabular-nums">{value}</p>
+      {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+type OverviewData = Extract<
+  NonNullable<ReturnType<typeof useOverviewType>>,
+  { allowed: true }
+>;
+
+/** Compile-time helper so OverviewTab can take the narrowed query shape. */
+function useOverviewType() {
+  return useQuery(api.admin.overview);
+}
+
+function OverviewTab({ data }: { data: OverviewData }) {
+  const me = useQuery(api.users.me);
+  const removeAdmin = useMutation(api.users.removeMyAdminBadge);
+  const restoreAdmin = useMutation(api.admin.restoreMyAdminBadge);
+  const holdsAdmin = data.me.isAdmin && (me?.badges ?? []).includes("admin");
+
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Accounts"
+          value={data.counts.users}
+          hint={`${data.counts.online} online right now`}
+          icon={Users}
+        />
+        <StatCard
+          label="Communities"
+          value={data.counts.servers}
+          hint="across Kyro"
+          icon={Hash}
+          tone="emerald"
+        />
+        <StatCard
+          label="Open reports"
+          value={data.counts.openReports}
+          hint="users, messages and servers"
+          icon={AlertTriangle}
+          tone="rose"
+        />
+        <StatCard
+          label="Open bugs"
+          value={data.counts.openBugs}
+          hint="from Bug Hunting"
+          icon={Wrench}
+          tone="amber"
+        />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Active bans"
+          value={data.counts.activeBans}
+          hint="platform-wide"
+          icon={Ban}
+          tone="rose"
+        />
+        <StatCard
+          label="Active warnings"
+          value={data.counts.activeWarnings}
+          hint="expire after 3 days"
+          icon={ShieldAlert}
+          tone="amber"
+        />
+        <StatCard
+          label="Admins"
+          value={data.counts.admins}
+          icon={Shield}
+        />
+        <StatCard
+          label="Moderators"
+          value={data.counts.moderators}
+          icon={ShieldCheck}
+          tone="emerald"
+        />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+        <section className="rounded-xl border border-border/70 bg-surface">
+          <header className="flex items-center justify-between border-b border-border/60 px-4 py-3">
+            <h2 className="text-sm font-semibold">Recent staff activity</h2>
+            <span className="text-xs text-muted-foreground">
+              {data.recentActions.length} entries
+            </span>
+          </header>
+          <ul className="divide-y divide-border/60">
+            {data.recentActions.length === 0 && (
+              <li className="px-4 py-6 text-sm text-muted-foreground">
+                No staff actions logged yet.
+              </li>
+            )}
+            {data.recentActions.map((action) => (
+              <li key={action.id} className="flex gap-3 px-4 py-2.5">
+                <span className="mt-1 size-1.5 shrink-0 rounded-full bg-brand" />
+                <div className="min-w-0">
+                  <p className="text-sm">
+                    <span className="font-medium">
+                      {action.actor?.name ?? "Kyro staff"}
+                    </span>{" "}
+                    <span className="text-muted-foreground">
+                      {action.action.replace(/_/g, " ")}
+                    </span>
+                  </p>
+                  {action.details && (
+                    <p className="truncate text-xs text-muted-foreground">
+                      {action.details}
+                    </p>
+                  )}
+                </div>
+                <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
+                  {timeAgo(action.createdAt)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="rounded-xl border border-border/70 bg-surface p-4">
+          <h2 className="text-sm font-semibold">Your staff identity</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Badges on your Kyro profile. Founder controls are exclusive to the
+            Kyro founder account.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {(me?.badges ?? []).map((badge) => (
+              <span
+                key={badge}
+                className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-panel px-2 py-0.5 text-xs"
+              >
+                <GlobalBadgeIcon
+                  badge={badge as GlobalBadgeKey}
+                  className="size-3.5"
+                />
+                {GLOBAL_BADGE_META[badge as GlobalBadgeKey]?.label ?? badge}
+              </span>
+            ))}
+            {(me?.badges ?? []).length === 0 && (
+              <span className="text-xs text-muted-foreground">
+                No global badges yet.
+              </span>
+            )}
+          </div>
+
+          {data.me.isFounder && (
+            <div className="mt-4 rounded-lg border border-brand/30 bg-brand/5 p-3">
+              <p className="text-sm font-semibold">Founder: Admin badge</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {holdsAdmin
+                  ? "Your Admin badge is showing. You can hide it from your profile without giving up access."
+                  : "Your Admin badge is hidden. Staff powers stay active — restore it whenever you like."}
+              </p>
+              <Button
+                size="sm"
+                variant={holdsAdmin ? "outline" : "default"}
+                className="mt-2"
+                onClick={() => {
+                  const action = holdsAdmin
+                    ? removeAdmin({}).then(() =>
+                        toast.success("Admin badge hidden from your profile."),
+                      )
+                    : restoreAdmin({}).then(() =>
+                        toast.success("Admin badge restored."),
+                      );
+                  void action.catch((error: unknown) =>
+                    toast.error(
+                      error instanceof Error
+                        ? error.message
+                        : "Could not update the badge.",
+                    ),
+                  );
+                }}
+              >
+                {holdsAdmin ? "Remove from my profile" : "Restore Admin badge"}
+              </Button>
+            </div>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Badge management                                                    */
+/* ------------------------------------------------------------------ */
+
+function BadgesTab({ isAdmin }: { isAdmin: boolean }) {
+  const [term, setTerm] = useState("");
+  const members = useQuery(api.admin.searchMembers, { term });
+  const setBadges = useMutation(api.users.setBadges);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const toggle = async (
+    userId: string,
+    field: (typeof BADGE_FIELDS)[number]["field"],
+    next: boolean,
+  ) => {
+    setBusyId(userId);
+    try {
+      await setBadges({
+        userId: userId as Id<"users">,
+        [field]: next,
+      });
+      toast.success("Badges updated.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not update badges.",
+      );
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative w-full max-w-sm">
+          <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={term}
+            onChange={(event) => setTerm(event.target.value)}
+            placeholder="Search by name or @username"
+            className="pl-8"
+            aria-label="Search accounts"
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {isAdmin
+            ? "Grant or revoke platform badges. Founder accounts are protected."
+            : "Badge changes are admin-only — you can review who holds what."}
+        </p>
+      </div>
+
+      {members === undefined ? (
+        <Loading />
+      ) : members.length === 0 ? (
+        <Empty text="No accounts matched that search." />
+      ) : (
+        <div className="space-y-2">
+          {members.map((member) => (
+            <div
+              key={member.id}
+              className="rounded-xl border border-border/70 bg-surface p-3"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="flex items-center gap-1.5 truncate text-sm font-semibold">
+                    {member.name}
+                    {member.isFounder && <RolePill label="Founder" tone="brand" />}
+                    {member.ban && <RolePill label="Banned" tone="rose" />}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    @{member.username ?? "no username"} ·{" "}
+                    {member.activeWarnings} active warning
+                    {member.activeWarnings === 1 ? "" : "s"}
+                    {member.lastSeen ? ` · seen ${timeAgo(member.lastSeen)}` : ""}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {BADGE_FIELDS.map((badge) => {
+                  const held = member.badges.includes(badge.id);
+                  const locked = !isAdmin || member.isFounder;
+                  return (
+                    <button
+                      key={badge.id}
+                      type="button"
+                      disabled={locked || busyId === member.id}
+                      onClick={() => void toggle(member.id, badge.field, !held)}
+                      title={
+                        locked
+                          ? "Only admins can change badges"
+                          : held
+                            ? "Revoke badge"
+                            : "Grant badge"
+                      }
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs transition-colors",
+                        held
+                          ? "border-brand/40 bg-brand/10 text-foreground"
+                          : "border-border/70 text-muted-foreground hover:border-brand/40 hover:text-foreground",
+                        locked && "cursor-not-allowed opacity-60",
+                      )}
+                    >
+                      <GlobalBadgeIcon badge={badge.id} className="size-3.5" />
+                      {GLOBAL_BADGE_META[badge.id].label}
+                      {busyId === member.id ? (
+                        <Loader2 className="size-3 animate-spin" />
+                      ) : held ? (
+                        <Check className="size-3" />
+                      ) : (
+                        <X className="size-3 opacity-40" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Report queue                                                        */
+/* ------------------------------------------------------------------ */
+
+function ReportsTab({ isAdmin }: { isAdmin: boolean }) {
+  const [status, setStatus] = useState<
+    "open" | "reviewing" | "resolved" | "dismissed" | "all"
+  >("open");
+  const reports = useQuery(api.admin.reportQueue, {
+    status: status === "all" ? undefined : status,
+  });
+  const resolve = useMutation(api.reports.resolve);
+  const removeMessage = useMutation(api.admin.deleteMessage);
+  const removeServer = useMutation(api.admin.removeServer);
+  const banUser = useMutation(api.admin.banUser);
+
+  const act = async (action: Promise<unknown>, message: string) => {
+    try {
+      await action;
+      toast.success(message);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not complete that.",
+      );
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={status}
+          aria-label="Filter reports"
+          onChange={(event) => setStatus(event.target.value as typeof status)}
+          className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+        >
+          <option value="open">Open</option>
+          <option value="reviewing">Reviewing</option>
+          <option value="resolved">Resolved</option>
+          <option value="dismissed">Dismissed</option>
+          <option value="all">All reports</option>
+        </select>
+        <p className="text-xs text-muted-foreground">
+          Reported users, messages and communities — resolve, remove or ban.
+        </p>
+      </div>
+
+      {reports === undefined ? (
+        <Loading />
+      ) : reports.length === 0 ? (
+        <Empty text="Nothing in this queue." />
+      ) : (
+        reports.map((report) => (
+          <div
+            key={report.id}
+            className="rounded-xl border border-border/70 bg-surface p-3"
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className={cn(
+                  "rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+                  report.status === "open"
+                    ? "border-warning/40 bg-warning/10 text-warning"
+                    : report.status === "reviewing"
+                      ? "border-brand/40 bg-brand/10 text-brand"
+                      : report.status === "resolved"
+                        ? "border-success/40 bg-success/10 text-success"
+                        : "border-border/70 bg-panel text-muted-foreground",
+                )}
+              >
+                {report.status}
+              </span>
+              <p className="min-w-0 flex-1 truncate text-sm font-semibold">
+                {report.reason}
+              </p>
+              <span className="shrink-0 text-xs text-muted-foreground">
+                {timeAgo(report.createdAt)}
+              </span>
+            </div>
+
+            <p className="mt-1 text-xs text-muted-foreground">
+              {report.reporterName} reported{" "}
+              {report.reportedName ??
+                report.messageAuthorName ??
+                (report.serverName ? `community ${report.serverName}` : "content")}
+              {report.serverName ? ` in ${report.serverName}` : ""}
+            </p>
+            {report.details && (
+              <p className="mt-1 rounded-md border border-border/60 bg-panel px-2 py-1.5 text-xs">
+                {report.details}
+              </p>
+            )}
+            {report.messageContent && (
+              <p className="mt-1 rounded-md border border-border/60 bg-panel px-2 py-1.5 text-xs italic">
+                “{report.messageContent.slice(0, 300)}”
+              </p>
+            )}
+
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <ActionButton
+                icon={Check}
+                label="Resolve"
+                tone="success"
+                onClick={() =>
+                  void act(
+                    resolve({
+                      reportId: report.id as Id<"reports">,
+                      status: "resolved",
+                      resolution: "Reviewed by Kyro staff.",
+                    }),
+                    "Report resolved.",
+                  )
+                }
+              />
+              <ActionButton
+                icon={X}
+                label="Dismiss"
+                onClick={() =>
+                  void act(
+                    resolve({
+                      reportId: report.id as Id<"reports">,
+                      status: "dismissed",
+                      resolution: "No rule break found.",
+                    }),
+                    "Report dismissed.",
+                  )
+                }
+              />
+              {report.messageId && (
+                <ActionButton
+                  icon={Trash2}
+                  label="Delete message"
+                  tone="danger"
+                  onClick={() =>
+                    void act(
+                      removeMessage({
+                        messageId: report.messageId as Id<"messages">,
+                      }),
+                      "Message deleted.",
+                    )
+                  }
+                />
+              )}
+              {report.reportedId && (
+                <ActionButton
+                  icon={Ban}
+                  label="Ban user"
+                  tone="danger"
+                  onClick={() =>
+                    void act(
+                      banUser({
+                        userId: report.reportedId as Id<"users">,
+                        reason: report.reason,
+                        days: 7,
+                      }),
+                      "Account banned for 7 days.",
+                    )
+                  }
+                />
+              )}
+              {report.serverId && isAdmin && (
+                <ActionButton
+                  icon={Trash2}
+                  label="Delete community"
+                  tone="danger"
+                  onClick={() => {
+                    if (!window.confirm("Delete this community permanently?")) return;
+                    void act(
+                      removeServer({
+                        serverId: report.serverId as Id<"servers">,
+                      }),
+                      "Community deleted.",
+                    );
+                  }}
+                />
+              )}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Bug triage                                                          */
+/* ------------------------------------------------------------------ */
+
+const BUG_STATUS = {
+  open: { label: "Open", chip: "border-warning/40 bg-warning/10 text-warning" },
+  acknowledged: {
+    label: "Acknowledged",
+    chip: "border-brand/40 bg-brand/10 text-brand",
+  },
+  fixed: { label: "Fixed", chip: "border-success/40 bg-success/10 text-success" },
+  not_a_bug: {
+    label: "Not a bug",
+    chip: "border-border/70 bg-panel text-muted-foreground",
+  },
+} as const;
+
+type BugStatus = keyof typeof BUG_STATUS;
+
+function BugsTab({
+  isAdmin,
+  canTriage,
+}: {
+  isAdmin: boolean;
+  canTriage: boolean;
+}) {
+  const bugs = useQuery(api.bugReports.list);
+  const update = useMutation(api.bugReports.updateStatus);
+  const setBadges = useMutation(api.users.setBadges);
+
+  if (bugs === undefined) return <Loading />;
+  if (bugs.length === 0) return <Empty text="No bug reports yet." />;
+
+  return (
+    <div className="space-y-2">
+      {bugs.map((bug) => {
+        const reporter = bug.reporter;
+        return (
+        <div
+          key={bug.id}
+          className="rounded-xl border border-border/70 bg-surface p-3"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={cn(
+                "rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+                BUG_STATUS[bug.status].chip,
+              )}
+            >
+              {BUG_STATUS[bug.status].label}
+            </span>
+            <p className="min-w-0 flex-1 truncate text-sm font-semibold">
+              {bug.title}
+            </p>
+            <span className="shrink-0 text-xs text-muted-foreground">
+              {bug.reporter ? `${bug.reporter.name} · ` : ""}
+              {timeAgo(bug.createdAt)}
+            </span>
+          </div>
+          {bug.details && (
+            <p className="mt-1 text-xs text-muted-foreground">{bug.details}</p>
+          )}
+          {bug.staffNote && (
+            <p className="mt-1 rounded-md border border-border/60 bg-panel px-2 py-1 text-xs">
+              Staff note: {bug.staffNote}
+            </p>
+          )}
+          {canTriage && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {(Object.keys(BUG_STATUS) as BugStatus[]).map((next) => (
+                <button
+                  key={next}
+                  type="button"
+                  onClick={() => {
+                    void update({
+                      reportId: bug.id as Id<"bugReports">,
+                      status: next,
+                      staffNote: bug.staffNote ?? undefined,
+                    })
+                      .then(() => toast.success("Bug report updated."))
+                      .catch((error: unknown) =>
+                        toast.error(
+                          error instanceof Error
+                            ? error.message
+                            : "Could not update that bug.",
+                        ),
+                      );
+                  }}
+                  className={cn(
+                    "rounded-md border px-2 py-1 text-xs transition-colors",
+                    bug.status === next
+                      ? "border-brand/50 bg-brand/10 text-foreground"
+                      : "border-border/70 text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {BUG_STATUS[next].label}
+                </button>
+              ))}
+              {reporter && isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void setBadges({
+                      userId: reporter.id as Id<"users">,
+                      bugHunter: true,
+                    })
+                      .then(() =>
+                        toast.success(
+                          `Bug Hunter badge granted to ${reporter.name}.`,
+                        ),
+                      )
+                      .catch((error: unknown) =>
+                        toast.error(
+                          error instanceof Error
+                            ? error.message
+                            : "Could not grant that badge.",
+                        ),
+                      );
+                  }}
+                  className="inline-flex items-center gap-1 rounded-md border border-warning/40 bg-warning/10 px-2 py-1 text-xs text-warning transition-colors hover:bg-warning/20"
+                >
+                  <Wrench className="size-3" /> Grant Bug Hunter
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Bans                                                                */
+/* ------------------------------------------------------------------ */
+
+function BansTab() {
+  const bans = useQuery(api.admin.banList);
+  const [term, setTerm] = useState("");
+  const [target, setTarget] = useState<{
+    id: string;
+    name: string;
+    username: string | null;
+  } | null>(null);
+  const [reason, setReason] = useState("");
+  const [days, setDays] = useState(7);
+  const results = useQuery(api.admin.searchMembers, {
+    term: term.length >= 2 ? term : undefined,
+  });
+  const banUser = useMutation(api.admin.banUser);
+  const unbanUser = useMutation(api.admin.unbanUser);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    if (!target || reason.trim().length < 3) return;
+    setBusy(true);
+    try {
+      await banUser({
+        userId: target.id as Id<"users">,
+        reason,
+        days: days === 0 ? undefined : days,
+      });
+      toast.success(`${target.name} was banned.`);
+      setTarget(null);
+      setTerm("");
+      setReason("");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not ban that account.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-[1fr_1.1fr]">
+      <section className="rounded-xl border border-border/70 bg-surface p-4">
+        <h2 className="text-sm font-semibold">Issue a platform ban</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Bans stop messaging, community creation and friend requests until
+          lifted or expired.
+        </p>
+
+        <div className="relative mt-3">
+          <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={target ? `${target.name}` : term}
+            onChange={(event) => {
+              setTarget(null);
+              setTerm(event.target.value);
+            }}
+            placeholder="Search an account"
+            className="pl-8"
+            aria-label="Find an account to ban"
+          />
+        </div>
+
+        {!target && term.length >= 2 && (
+          <div className="mt-1 max-h-48 overflow-y-auto rounded-md border border-border/70 bg-panel">
+            {results === undefined ? (
+              <p className="px-3 py-2 text-xs text-muted-foreground">Searching…</p>
+            ) : results.length === 0 ? (
+              <p className="px-3 py-2 text-xs text-muted-foreground">
+                No accounts matched.
+              </p>
+            ) : (
+              results.slice(0, 8).map((member) => (
+                <button
+                  key={member.id}
+                  type="button"
+                  onClick={() => {
+                    setTarget({
+                      id: member.id,
+                      name: member.name,
+                      username: member.username,
+                    });
+                    setTerm("");
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface"
+                >
+                  <span className="min-w-0 flex-1 truncate">{member.name}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    @{member.username ?? "—"}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        )}
+
+        <div className="mt-3 grid gap-2">
+          <Input
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            placeholder="Reason shown to the member"
+            maxLength={300}
+            aria-label="Ban reason"
+          />
+          <div className="flex items-center gap-2">
+            <select
+              value={days}
+              aria-label="Ban length"
+              onChange={(event) => setDays(Number(event.target.value))}
+              className="h-9 flex-1 rounded-md border border-input bg-background px-2 text-sm"
+            >
+              <option value={1}>1 day</option>
+              <option value={7}>7 days</option>
+              <option value={30}>30 days</option>
+              <option value={90}>90 days</option>
+              <option value={0}>Permanent</option>
+            </select>
+            <Button
+              disabled={!target || busy || reason.trim().length < 3}
+              onClick={() => void submit()}
+            >
+              {busy && <Loader2 className="mr-2 size-4 animate-spin" />}
+              Ban account
+            </Button>
+          </div>
+          {target && (
+            <p className="text-xs text-muted-foreground">
+              Target: <span className="font-medium">{target.name}</span>
+              {target.username ? ` (@${target.username})` : ""}
+            </p>
+          )}
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-border/70 bg-surface">
+        <header className="border-b border-border/60 px-4 py-3">
+          <h2 className="text-sm font-semibold">Ban history</h2>
+        </header>
+        {bans === undefined ? (
+          <Loading />
+        ) : bans.length === 0 ? (
+          <p className="px-4 py-6 text-sm text-muted-foreground">
+            No platform bans have been issued.
+          </p>
+        ) : (
+          <ul className="divide-y divide-border/60">
+            {bans.map((ban) => (
+              <li key={ban.id} className="px-4 py-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="min-w-0 flex-1 truncate text-sm font-medium">
+                    {ban.userName}
+                    {ban.username ? (
+                      <span className="ml-1 text-xs text-muted-foreground">
+                        @{ban.username}
+                      </span>
+                    ) : null}
+                  </p>
+                  <span
+                    className={cn(
+                      "rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase",
+                      ban.active
+                        ? "border-destructive/40 bg-destructive/10 text-destructive"
+                        : "border-border/70 text-muted-foreground",
+                    )}
+                  >
+                    {ban.active
+                      ? ban.expiresAt
+                        ? "Temporary"
+                        : "Permanent"
+                      : "Lifted"}
+                  </span>
+                </div>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {ban.reason} · by {ban.bannedByName} ·{" "}
+                  {timeAgo(ban.createdAt)}
+                </p>
+                {ban.active && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-1.5"
+                    onClick={() => {
+                      void unbanUser({ banId: ban.id as Id<"siteBans"> })
+                        .then(() => toast.success("Ban lifted."))
+                        .catch((error: unknown) =>
+                          toast.error(
+                            error instanceof Error
+                              ? error.message
+                              : "Could not lift that ban.",
+                          ),
+                        );
+                    }}
+                  >
+                    Lift ban
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Warnings + activity                                                 */
+/* ------------------------------------------------------------------ */
+
+function WarningsTab() {
+  const warnings = useQuery(api.admin.warningList);
+  const lift = useMutation(api.admin.liftWarning);
+  if (warnings === undefined) return <Loading />;
+  if (warnings.length === 0) {
+    return <Empty text="No active warnings across Kyro." />;
+  }
+  return (
+    <div className="space-y-2">
+      {warnings.map((warning) => (
+        <div
+          key={warning.id}
+          className="flex flex-wrap items-center gap-2 rounded-xl border border-warning/30 bg-warning/5 p-3"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold">
+              {warning.userName}
+              {warning.username ? (
+                <span className="ml-1 text-xs font-normal text-muted-foreground">
+                  @{warning.username}
+                </span>
+              ) : null}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {warning.reason} · by {warning.issuedByName} · expires{" "}
+              {new Date(warning.expiresAt).toLocaleDateString()}
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              void lift({ warningId: warning.id as Id<"warnings"> })
+                .then(() => toast.success("Warning cleared."))
+                .catch((error: unknown) =>
+                  toast.error(
+                    error instanceof Error
+                      ? error.message
+                      : "Could not clear that warning.",
+                  ),
+                );
+            }}
+          >
+            Clear warning
+          </Button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ActivityTab() {
+  const actions = useQuery(api.admin.actionLog);
+  if (actions === undefined) return <Loading />;
+  if (actions.length === 0) return <Empty text="No staff actions logged yet." />;
+  return (
+    <div className="overflow-hidden rounded-xl border border-border/70 bg-surface">
+      <ul className="divide-y divide-border/60">
+        {actions.map((action) => (
+          <li key={action.id} className="flex flex-wrap gap-2 px-4 py-2.5">
+            <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-brand" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm">
+                <span className="font-medium">{action.actorName}</span>{" "}
+                <span className="text-muted-foreground">
+                  {action.action.replace(/_/g, " ")}
+                </span>
+                {action.targetType ? ` · ${action.targetType}` : ""}
+              </p>
+              {action.details && (
+                <p className="truncate text-xs text-muted-foreground">
+                  {action.details}
+                </p>
+              )}
+            </div>
+            <span className="shrink-0 text-[11px] text-muted-foreground">
+              {new Date(action.createdAt).toLocaleString()}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Shared bits                                                         */
+/* ------------------------------------------------------------------ */
+
+function ActionButton({
+  icon: Icon,
+  label,
+  onClick,
+  tone = "neutral",
+}: {
+  icon: typeof Check;
+  label: string;
+  onClick: () => void;
+  tone?: "neutral" | "success" | "danger";
+}) {
+  const tones = {
+    neutral: "border-border/70 text-muted-foreground hover:text-foreground",
+    success: "border-success/40 text-success hover:bg-success/10",
+    danger: "border-destructive/40 text-destructive hover:bg-destructive/10",
+  } as const;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors",
+        tones[tone],
+      )}
+    >
+      <Icon className="size-3.5" />
+      {label}
+    </button>
+  );
+}
+
+function Loading() {
+  return (
+    <div className="flex justify-center py-8">
+      <Loader2 className="size-5 animate-spin text-muted-foreground" />
+    </div>
+  );
+}
+
+function Empty({ text }: { text: string }) {
+  return (
+    <p className="rounded-xl border border-dashed border-border/70 px-4 py-8 text-center text-sm text-muted-foreground">
+      {text}
+    </p>
+  );
+}

@@ -2,6 +2,8 @@ import { useAction, useMutation, useQuery } from "convex/react";
 import {
   AlertTriangle,
   Download,
+  Eye,
+  EyeOff,
   Loader2,
   LogOut,
   Monitor,
@@ -17,7 +19,7 @@ import {
 import { useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { UserAvatar } from "@/components/app/UserAvatar";
+import { PresenceDot, UserAvatar } from "@/components/app/UserAvatar";
 import { ConfirmDangerDialog } from "@/components/app/dialogs";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,6 +46,8 @@ import { APP_TINTS } from "@/lib/tints";
 import {
   GLOBAL_BADGE_META,
   GlobalBadgeIcon,
+  GlobalBadges,
+  InlineBadge,
 } from "@/components/app/GlobalBadges";
 import { Slider } from "@/components/ui/slider";
 import { MAX_UPLOAD_BYTES, useUploadFile } from "@/lib/upload";
@@ -72,6 +76,14 @@ const TABS: { id: TabId; label: string; icon: typeof UserIcon }[] = [
 /** Mirrors USERNAME_COOLDOWN_MS in src/convex/users.ts — shown as a hint. */
 const USERNAME_CHANGE_COOLDOWN_MS = 60 * 60 * 1000;
 
+/** The four states a person can pick; offline is never a manual choice. */
+const PRESENCE_CHOICES = [
+  { value: "online", label: "Online" },
+  { value: "idle", label: "Idle" },
+  { value: "dnd", label: "Do not disturb" },
+  { value: "invisible", label: "Invisible" },
+] as const;
+
 /** `alice@example.com` → `a***@example.com` until the user hits Reveal. */
 function maskEmail(email: string): string {
   const at = email.indexOf("@");
@@ -95,11 +107,16 @@ export function SettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[85vh] max-w-4xl flex-col gap-0 overflow-hidden p-0">
+      <DialogContent className="flex h-[88vh] max-w-5xl flex-col gap-0 overflow-hidden p-0">
         <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
-          <nav className="shrink-0 gap-1 border-b border-border/60 p-3 sm:w-56 sm:border-b-0 sm:border-r">
+          <nav className="shrink-0 gap-1 border-b border-border/60 bg-panel/40 p-3 sm:w-60 sm:border-b-0 sm:border-r">
             <DialogHeader className="mb-3 px-2 text-left">
-              <DialogTitle className="text-base">Settings</DialogTitle>
+              <DialogTitle className="text-base">
+                User settings
+                <span className="ml-2 rounded-full bg-brand/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand">
+                  Kyro
+                </span>
+              </DialogTitle>
               <DialogDescription className="sr-only">
                 Account, appearance and privacy preferences.
               </DialogDescription>
@@ -111,10 +128,10 @@ export function SettingsDialog({
                   type="button"
                   onClick={() => setTab(entry.id)}
                   className={cn(
-                    "flex shrink-0 items-center gap-2 rounded-md px-2.5 py-2 text-sm transition-colors",
+                    "flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-2 text-sm transition-colors",
                     tab === entry.id
-                      ? "bg-sidebar-accent text-foreground"
-                      : "text-muted-foreground hover:bg-sidebar-accent/60",
+                      ? "bg-surface font-medium text-foreground shadow-sm ring-1 ring-border/70"
+                      : "text-muted-foreground hover:bg-surface/60 hover:text-foreground",
                   )}
                 >
                   <entry.icon className="size-4" />
@@ -186,6 +203,53 @@ function AccountRow({
   );
 }
 
+/**
+ * Password field with its own working reveal toggle. The button is a sibling
+ * (not a child) of the input, so clicking it never submits the form and the
+ * plain-text value is shown while keeping the field focusable.
+ */
+function PasswordInput({
+  id,
+  value,
+  onChange,
+  autoComplete,
+  minLength,
+  label,
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  autoComplete?: string;
+  minLength?: number;
+  label: string;
+}) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="relative">
+      <Input
+        id={id}
+        type={visible ? "text" : "password"}
+        autoComplete={autoComplete}
+        minLength={minLength}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        required
+        className="pr-10"
+      />
+      <button
+        type="button"
+        onClick={() => setVisible((current) => !current)}
+        aria-label={visible ? `Hide ${label}` : `Show ${label}`}
+        aria-pressed={visible}
+        title={visible ? "Hide password" : "Show password"}
+        className="absolute inset-y-0 right-0 z-10 flex w-10 items-center justify-center rounded-r-md text-muted-foreground transition-colors hover:text-foreground"
+      >
+        {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+      </button>
+    </div>
+  );
+}
+
 /** Modal for swapping this account's password after re-authentication. */
 function ChangePasswordDialog({
   open,
@@ -252,37 +316,34 @@ function ChangePasswordDialog({
         >
           <div className="grid gap-2">
             <Label htmlFor="pw-current">Current password</Label>
-            <Input
+            <PasswordInput
               id="pw-current"
-              type="password"
               autoComplete="current-password"
               value={current}
-              onChange={(event) => setCurrent(event.target.value)}
-              required
+              onChange={setCurrent}
+              label="current password"
             />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="pw-new">New password</Label>
-            <Input
+            <PasswordInput
               id="pw-new"
-              type="password"
               autoComplete="new-password"
               minLength={8}
               value={next}
-              onChange={(event) => setNext(event.target.value)}
-              required
+              onChange={setNext}
+              label="new password"
             />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="pw-confirm">Confirm new password</Label>
-            <Input
+            <PasswordInput
               id="pw-confirm"
-              type="password"
               autoComplete="new-password"
               minLength={8}
               value={confirm}
-              onChange={(event) => setConfirm(event.target.value)}
-              required
+              onChange={setConfirm}
+              label="confirm new password"
             />
           </div>
           <div className="flex justify-end gap-2">
@@ -655,6 +716,7 @@ function AccountTab({ onEditProfile }: { onEditProfile: () => void }) {
   const [passwordOpen, setPasswordOpen] = useState(false);
   const updatePrivacy = useMutation(api.users.updatePrivacy);
   const revokeOthers = useMutation(api.users.revokeOtherSessions);
+  const setPresence = useMutation(api.users.setPresence);
 
   const logoutEverywhere = async () => {
     if (busy) return;
@@ -715,8 +777,8 @@ function AccountTab({ onEditProfile }: { onEditProfile: () => void }) {
     <>
       {/* Identity card: banner, avatar and the field rows beneath it. */}
       <section className="mb-7">
-        <div className="overflow-hidden rounded-xl border border-border/70 bg-surface">
-          <div className="relative h-28 bg-gradient-to-r from-brand/60 via-brand/30 to-cyan/40">
+        <div className="overflow-hidden rounded-2xl border border-border/70 bg-surface shadow-sm">
+          <div className="relative h-32 bg-gradient-to-r from-brand/60 via-brand/30 to-cyan/40">
             {me.bannerUrl && (
               <img
                 src={me.bannerUrl}
@@ -725,33 +787,78 @@ function AccountTab({ onEditProfile }: { onEditProfile: () => void }) {
               />
             )}
             <span
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden px-4 text-center text-2xl font-bold uppercase tracking-[0.3em] text-white/30 select-none"
-            >
-              {me.name}
-            </span>
+              aria-hidden
+              className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_60%)]"
+            />
           </div>
-          <div className="flex items-end gap-4 px-4 pb-4">
-            <div className="-mt-8 shrink-0 rounded-full border-4 border-surface bg-panel">
-              <UserAvatar user={me} size="xl" />
+          <div className="px-5 pb-4">
+            <div className="-mt-14 flex flex-wrap items-end gap-4">
+              <div className="shrink-0 rounded-full bg-surface p-1.5 shadow-lg ring-1 ring-border/60">
+                <UserAvatar user={me} size="2xl" />
+              </div>
+              <div className="min-w-0 flex-1 pb-2">
+                <p className="flex flex-wrap items-center gap-2 text-xl font-semibold leading-tight">
+                  <span className="truncate">{me.name}</span>
+                  <InlineBadge badges={me.badges} primaryBadge={me.primaryBadge} />
+                </p>
+                <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm text-muted-foreground">
+                  <PresenceDot presence={me.presence} size="sm" ringClassName="" />
+                  @{me.username ?? "no username"}
+                  {me.customStatus ? ` · ${me.customStatus}` : ""}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mb-2 shrink-0"
+                onClick={onEditProfile}
+              >
+                <Palette className="mr-1.5 size-4" /> Edit profile
+              </Button>
             </div>
-            <div className="min-w-0 flex-1 pb-1">
-              <p className="truncate text-lg font-semibold leading-tight">
-                {me.name}
-              </p>
-              <p className="truncate text-sm text-muted-foreground">
-                @{me.username ?? "no username"}
-                {me.customStatus ? ` · ${me.customStatus}` : ""}
-              </p>
+
+            {me.badges.length > 0 && (
+              <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-3">
+                <span className="mr-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Badges
+                </span>
+                <GlobalBadges badges={me.badges} />
+              </div>
+            )}
+
+            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Status
+              </span>
+              {PRESENCE_CHOICES.map((choice) => (
+                <button
+                  key={choice.value}
+                  type="button"
+                  onClick={() =>
+                    void setPresence({ status: choice.value }).catch((error) =>
+                      toast.error(
+                        error instanceof Error
+                          ? error.message
+                          : "Could not update your status.",
+                      ),
+                    )
+                  }
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs transition-colors",
+                    me.presence === choice.value
+                      ? "border-brand/50 bg-brand/10 text-foreground"
+                      : "border-border/70 text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <PresenceDot
+                    presence={choice.value}
+                    size="xs"
+                    ringClassName=""
+                  />
+                  {choice.label}
+                </button>
+              ))}
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mb-1 shrink-0"
-              onClick={onEditProfile}
-            >
-              Edit profile
-            </Button>
           </div>
         </div>
 
@@ -1049,7 +1156,7 @@ function ProfileTab() {
     <>
       <Section title="Avatar">
         <div className="flex flex-wrap items-center gap-4">
-          <UserAvatar user={me} size="lg" />
+          <UserAvatar user={me} size="xl" />
           <div className="flex flex-wrap gap-2">
             <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-border/70 bg-surface px-3 py-2 text-sm hover:bg-surface/70">
               {uploading ? (

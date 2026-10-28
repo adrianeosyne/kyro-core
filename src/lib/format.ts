@@ -4,18 +4,51 @@ export type PresenceState = "online" | "idle" | "dnd" | "invisible" | "offline";
 
 export const PRESENCE_META: Record<
   PresenceState,
-  { label: string; dot: string; text: string }
+  { label: string; dot: string; text: string; hex: string; glyph: string }
 > = {
-  online: { label: "Online", dot: "bg-success", text: "text-success" },
-  idle: { label: "Idle", dot: "bg-warning", text: "text-warning" },
+  online: {
+    label: "Online",
+    dot: "bg-success",
+    text: "text-success",
+    hex: "#22c55e",
+    glyph: "Online",
+  },
+  idle: {
+    label: "Idle",
+    dot: "bg-warning",
+    text: "text-warning",
+    hex: "#f59e0b",
+    glyph: "Idle",
+  },
   dnd: {
     label: "Do not disturb",
     dot: "bg-destructive",
     text: "text-destructive",
+    hex: "#ef4444",
+    glyph: "Do not disturb",
   },
-  invisible: { label: "Invisible", dot: "bg-muted-foreground", text: "text-muted-foreground" },
-  offline: { label: "Offline", dot: "bg-muted-foreground/50", text: "text-muted-foreground" },
+  invisible: {
+    label: "Invisible",
+    dot: "bg-muted-foreground",
+    text: "text-muted-foreground",
+    hex: "#94a3b8",
+    glyph: "Invisible",
+  },
+  offline: {
+    label: "Offline",
+    dot: "bg-muted-foreground/50",
+    text: "text-muted-foreground",
+    hex: "#64748b",
+    glyph: "Offline",
+  },
 };
+
+/** Coerces anything (including stale payloads) to a real presence state. */
+export function normalizePresence(value: unknown): PresenceState {
+  return typeof value === "string" && value in PRESENCE_META
+    ? (value as PresenceState)
+    : "offline";
+}
 
 export function formatTime(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString([], {

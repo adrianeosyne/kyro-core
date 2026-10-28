@@ -1,5 +1,11 @@
 import { cn } from "@/lib/utils";
-import { seedColor, initials, PRESENCE_META, type PresenceState } from "@/lib/format";
+import {
+  seedColor,
+  initials,
+  PRESENCE_META,
+  normalizePresence,
+  type PresenceState,
+} from "@/lib/format";
 import { findFrame } from "@/lib/frames";
 
 export interface AvatarUser {
@@ -19,27 +25,90 @@ const SIZES = {
   md: "size-10 text-sm",
   lg: "size-16 text-xl",
   xl: "size-24 text-3xl",
+  /** Settings hero avatar — deliberately large so the profile preview reads. */
+  "2xl": "size-32 text-5xl",
 } as const;
 
-/** Small status dot matched to the user's presence state. */
-export function UserStatus({ presence, size = "sm" }: { presence: PresenceState; size?: keyof typeof SIZES }) {
-  // Precomputed-replacement guard coerces any state string to a known presence.
-  const state = (PRESENCE_META[presence] ? presence : "offline") as PresenceState;
-  const meta = PRESENCE_META[state].dot;
-  const dotSize = {
-    xs: "size-2 border",
-    sm: "size-2.5 border-[1.5px]",
-    md: "size-3 border-2",
-    lg: "size-5 border-[3px]",
-    xl: "size-7 border-4",
-  }[size];
+/** Pixel size of the presence dot for each avatar size. */
+const DOT_PX: Record<keyof typeof SIZES, number> = {
+  xs: 7,
+  sm: 10,
+  md: 12,
+  lg: 18,
+  xl: 24,
+  "2xl": 32,
+};
+
+/**
+ * Presence dot. Colours are painted with an inline background (not only a
+ * Tailwind token) so the dot stays visible even if a theme class is missing,
+ * and the ring uses a solid surface colour so it reads on every background.
+ */
+export function PresenceDot({
+  presence,
+  size = "sm",
+  ringClassName = "ring-panel",
+  className,
+}: {
+  presence: PresenceState | string;
+  size?: keyof typeof SIZES;
+  ringClassName?: string;
+  className?: string;
+}) {
+  const state = normalizePresence(presence);
+  const meta = PRESENCE_META[state];
+  const px = DOT_PX[size];
 
   return (
     <span
-      aria-hidden
-      className={cn("relative inline-flex shrink-0", dotSize, meta)}
-    />
+      title={meta.label}
+      aria-label={meta.label}
+      className={cn(
+        "pointer-events-none relative inline-flex shrink-0 items-center justify-center rounded-full",
+        ringClassName !== "" && "ring-[2.5px]",
+        ringClassName,
+        className,
+      )}
+      style={{
+        width: px,
+        height: px,
+        backgroundColor: meta.hex,
+        // A hairline dark edge keeps light dots readable on light avatars.
+        boxShadow: "inset 0 0 0 0.5px rgba(0,0,0,0.18)",
+        opacity: state === "offline" ? 0.75 : 1,
+      }}
+    >
+      {state === "dnd" && (
+        <span
+          aria-hidden
+          className="rounded-full bg-white"
+          style={{ width: px * 0.5, height: Math.max(1.5, px * 0.14) }}
+        />
+      )}
+      {state === "idle" && (
+        <span
+          aria-hidden
+          className="rounded-full bg-white/90"
+          style={{
+            width: px * 0.46,
+            height: px * 0.46,
+            transform: `translate(${px * 0.06}px, ${-px * 0.06}px)`,
+          }}
+        />
+      )}
+    </span>
   );
+}
+
+/** Standalone status dot matched to a presence state. */
+export function UserStatus({
+  presence,
+  size = "sm",
+}: {
+  presence: PresenceState;
+  size?: keyof typeof SIZES;
+}) {
+  return <PresenceDot presence={presence} size={size} ringClassName="" />;
 }
 
 /**
@@ -58,15 +127,7 @@ export function UserAvatar({
   showStatus?: boolean;
   className?: string;
 }) {
-  const presenceRaw = user.presence ?? "offline";
-  const presence = (PRESENCE_META[presenceRaw] ? presenceRaw : "offline") as PresenceState;
-  const dotSize = {
-    xs: "size-2 border",
-    sm: "size-2.5 border-[1.5px]",
-    md: "size-3 border-2",
-    lg: "size-5 border-[3px]",
-    xl: "size-7 border-4",
-  }[size];
+  const presence = normalizePresence(user.presence);
   const frame = findFrame(user.avatarFrame);
 
   return (
@@ -102,14 +163,10 @@ export function UserAvatar({
         </span>
       </span>
       {showStatus && (
-        <span
-          aria-hidden
-          title={PRESENCE_META[presence].label}
-          className={cn(
-            "absolute -bottom-0.5 -right-0.5 rounded-full ring-[2.5px] ring-panel",
-            PRESENCE_META[presence].dot,
-            dotSize,
-          )}
+        <PresenceDot
+          presence={presence}
+          size={size}
+          className="absolute -bottom-0.5 -right-0.5"
         />
       )}
     </span>

@@ -9,8 +9,13 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 
 export type Ctx = QueryCtx | MutationCtx;
 
-/** A user is considered online if they heartbeated within this window. */
-export const PRESENCE_TIMEOUT_MS = 60_000;
+/**
+ * A user is considered online if they heartbeated within this window.
+ * The client heartbeats every 15s, so this comfortably survives a couple of
+ * missed ticks (background tab throttling, flaky networks) before dropping
+ * someone to offline.
+ */
+export const PRESENCE_TIMEOUT_MS = 150_000;
 
 export const MAX_MESSAGE_LENGTH = 2000;
 export const MAX_ATTACHMENTS = 6;
@@ -30,13 +35,45 @@ export async function requireUser(
   return { id, user };
 }
 
-/** Someone who finished onboarding (claimed a unique username). */
+/** The active platform ban on an account, or null when it is clean. */
+export async function activeSiteBan(
+  ctx: Ctx,
+  userId: Id<"users">,
+): Promise<Doc<"siteBans"> | null> {
+  const rows = await ctx.db
+    .query("siteBans")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .collect();
+  const now = Date.now();
+  return (
+    rows
+      .filter(
+        (row) =>
+          row.liftedAt === undefined &&
+          (row.expiresAt === undefined || row.expiresAt > now),
+      )
+      .sort((a, b) => b.createdAt - a.createdAt)[0] ?? null
+  );
+}
+
+/**
+ * Someone who finished onboarding (claimed a unique username) and is not
+ * currently banned by Kyro staff. Every write gate uses this, so a site ban
+ * really stops messaging, community creation and friend requests.
+ */
 export async function requireProfile(
   ctx: Ctx,
 ): Promise<{ id: Id<"users">; user: Doc<"users"> }> {
   const authed = await requireUser(ctx);
   if (!authed.user.username) {
     throw new Error("Claim a username before using Kyro.");
+  }
+  const ban = await activeSiteBan(ctx, authed.id);
+  if (ban) {
+    const until = ban.expiresAt
+      ? ` until ${new Date(ban.expiresAt).toLocaleDateString()}`
+      : " permanently";
+    throw new Error(`Your Kyro account is banned${until}: ${ban.reason}`);
   }
   return authed;
 }
@@ -60,6 +97,8 @@ export function visiblePresence(
   const recentlyActive =
     user.lastSeen !== undefined && now - user.lastSeen < PRESENCE_TIMEOUT_MS;
   if (!recentlyActive) return "offline";
+  // An explicit online/idle/dnd choice wins over the inferred default, and a
+  // record that is merely missing `status` (older accounts) is online.
   if (user.status === "idle" || user.status === "dnd") return user.status;
   return "online";
 }

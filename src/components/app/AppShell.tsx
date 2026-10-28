@@ -39,13 +39,24 @@ export function AppShell({ children }: { children: ReactNode }) {
   const settingsOpen = searchParams.get("settings") !== null;
 
   // Presence heartbeat: keeps this account visible as online for others.
+  // Fires immediately, every 15s, and whenever the tab comes back to the
+  // foreground so idle background tabs never look offline to other people.
   useEffect(() => {
     const tick = () => {
       void heartbeat().catch(() => undefined);
     };
     tick();
-    const interval = window.setInterval(tick, 20_000);
-    return () => window.clearInterval(interval);
+    const interval = window.setInterval(tick, 15_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", tick);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", tick);
+    };
   }, [heartbeat]);
 
   // Notification ping: fires when unread notifications arrive while the tab
