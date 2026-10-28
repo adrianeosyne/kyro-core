@@ -6,12 +6,22 @@ import { cn } from "@/lib/utils";
  * "Badges" shelf on a profile, deliberately separate from community roles.
  *
  * Every icon here is original 2D vector artwork drawn for Kyro:
- *  - founder  — the crown (same art as the inline crown badge)
- *  - admin    — shield + star, rose gradient
- *  - moderator— shield + check, emerald gradient
- *  - verified — scalloped seal + check, blue gradient
+ *  - founder   — the crown (same art as the inline crown badge)
+ *  - admin     — shield + star, rose gradient
+ *  - moderator — shield + check, emerald gradient
+ *  - verified  — scalloped seal + check, blue gradient
+ *  - bughunter — bug inside a scalloped ring, amber gradient
+ *  - vip       — diamond, violet gradient
+ *  - og        — rocket, teal gradient
  */
-export type GlobalBadgeKey = "founder" | "admin" | "moderator" | "verified";
+export type GlobalBadgeKey =
+  | "founder"
+  | "admin"
+  | "moderator"
+  | "verified"
+  | "bughunter"
+  | "vip"
+  | "og";
 
 export const GLOBAL_BADGE_META: Record<
   GlobalBadgeKey,
@@ -37,10 +47,32 @@ export const GLOBAL_BADGE_META: Record<
     blurb: "Verified by the Kyro team.",
     chip: "border-brand/40 bg-brand/10 text-brand",
   },
+  bughunter: {
+    label: "Bug Hunter",
+    blurb: "Helped squash bugs in Kyro.",
+    chip: "border-amber-400/40 bg-amber-500/10 text-amber-500 dark:text-amber-300",
+  },
+  vip: {
+    label: "VIP",
+    blurb: "A very important Kyro member.",
+    chip: "border-fuchsia-400/40 bg-fuchsia-500/10 text-fuchsia-500 dark:text-fuchsia-300",
+  },
+  og: {
+    label: "OG",
+    blurb: "Been here since the early days.",
+    chip: "border-teal-400/40 bg-teal-500/10 text-teal-500 dark:text-teal-300",
+  },
 };
 
-/** The three badges staff can grant (founder is derived from the account). */
-export const GRANTABLE_BADGES = ["admin", "moderator", "verified"] as const;
+/** Badges staff can grant (founder is derived from the account). */
+export const GRANTABLE_BADGES = [
+  "admin",
+  "moderator",
+  "verified",
+  "bughunter",
+  "vip",
+  "og",
+] as const;
 export type GrantableBadge = (typeof GRANTABLE_BADGES)[number];
 
 /** Inline display order — compact rows show only the highest of these. */
@@ -48,6 +80,9 @@ export const BADGE_PRIORITY: GlobalBadgeKey[] = [
   "founder",
   "admin",
   "moderator",
+  "bughunter",
+  "vip",
+  "og",
   "verified",
 ];
 
@@ -150,6 +185,27 @@ export function GlobalBadgeIcon({
             <stop offset="100%" stopColor="#1d4ed8" />
           </linearGradient>
         )}
+        {badge === "bughunter" && (
+          <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#fde68a" />
+            <stop offset="55%" stopColor="#f59e0b" />
+            <stop offset="100%" stopColor="#b45309" />
+          </linearGradient>
+        )}
+        {badge === "vip" && (
+          <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#e9d5ff" />
+            <stop offset="55%" stopColor="#a855f7" />
+            <stop offset="100%" stopColor="#6d28d9" />
+          </linearGradient>
+        )}
+        {badge === "og" && (
+          <linearGradient id={gradientId} x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0%" stopColor="#5eead4" />
+            <stop offset="55%" stopColor="#14b8a6" />
+            <stop offset="100%" stopColor="#0f766e" />
+          </linearGradient>
+        )}
       </defs>
 
       {badge === "admin" && (
@@ -212,6 +268,107 @@ export function GlobalBadgeIcon({
             strokeWidth="2.1"
             strokeLinecap="round"
             strokeLinejoin="round"
+          />
+        </>
+      )}
+
+      {badge === "bughunter" && (
+        <>
+          <circle cx="12" cy="12" r="8.6" fill={`url(#${gradientId})`} opacity="0.28" />
+          <circle
+            cx="12"
+            cy="12"
+            r="8.6"
+            fill="none"
+            stroke={`url(#${gradientId})`}
+            strokeWidth="1.1"
+          />
+          {/* beetle body */}
+          <ellipse cx="12" cy="13.1" rx="3.3" ry="4.3" fill={`url(#${gradientId})`} />
+          <circle cx="12" cy="8.4" r="2.1" fill={`url(#${gradientId})`} />
+          {/* legs */}
+          <g stroke={`url(#${gradientId})`} strokeWidth="1.1" strokeLinecap="round">
+            <path d="M8.9 11.2 6.9 9.6M8.7 13.2H6.5M8.9 15.2l-2 1.6" />
+            <path d="M15.1 11.2 17.1 9.6M15.3 13.2h2.2M15.1 15.2l2 1.6" />
+          </g>
+          {/* antennae */}
+          <path
+            d="M11 6.7 9.9 5.4M13 6.7l1.1-1.3"
+            stroke={`url(#${gradientId})`}
+            strokeWidth="1"
+            strokeLinecap="round"
+          />
+          {/* shell split */}
+          <path
+            d="M12 9.4v7.2"
+            stroke="#7c2d12"
+            strokeOpacity="0.55"
+            strokeWidth="0.9"
+            strokeLinecap="round"
+          />
+        </>
+      )}
+
+      {badge === "vip" && (
+        <>
+          {/* diamond */}
+          <path
+            d="M7.6 4.6h8.8l3.4 4.6L12 19.6 4.2 9.2Z"
+            fill={`url(#${gradientId})`}
+            stroke="#5b21b6"
+            strokeWidth="0.9"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M7.6 4.6 12 19.6 16.4 4.6"
+            fill="none"
+            stroke="#ffffff"
+            strokeOpacity="0.45"
+            strokeWidth="1"
+          />
+          <path
+            d="M4.2 9.2h15.6"
+            fill="none"
+            stroke="#ffffff"
+            strokeOpacity="0.45"
+            strokeWidth="1"
+          />
+          <path
+            d="M8.7 6.9h3.1l-1.6 3.9Z"
+            fill="#ffffff"
+            fillOpacity="0.85"
+          />
+        </>
+      )}
+
+      {badge === "og" && (
+        <>
+          {/* rocket */}
+          <path
+            d="M12 3.4c2.9 2.2 4.3 5.3 4.3 8.7l-1.7 3.1H9.4l-1.7-3.1c0-3.4 1.4-6.5 4.3-8.7Z"
+            fill={`url(#${gradientId})}`}
+            stroke="#115e59"
+            strokeWidth="0.9"
+            strokeLinejoin="round"
+          />
+          <circle cx="12" cy="9.6" r="1.9" fill="#ffffff" fillOpacity="0.85" />
+          <path
+            d="M7.7 11.4 5.4 14.8l2.8-.7M16.3 11.4l2.3 3.4-2.8-.7"
+            fill={`url(#${gradientId})}`}
+            stroke="#115e59"
+            strokeWidth="0.8"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M10.7 16.2h2.6l-.6 2.1-1.6 1.9-1.6-1.9Z"
+            fill="#ffffff"
+            fillOpacity="0.85"
+          />
+          <path
+            d="M12 15.9v1.8"
+            stroke={`url(#${gradientId})`}
+            strokeWidth="1.4"
+            strokeLinecap="round"
           />
         </>
       )}

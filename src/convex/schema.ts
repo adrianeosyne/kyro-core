@@ -45,6 +45,14 @@ const schema = defineSchema(
       siteModerator: v.optional(v.boolean()),
       /** Site-wide Verified badge — granted by admins. */
       verified: v.optional(v.boolean()),
+      /** Site-wide Bug Hunter badge — granted for a confirmed bug report. */
+      bugHunter: v.optional(v.boolean()),
+      /** Site-wide VIP badge — granted to very important members. */
+      vip: v.optional(v.boolean()),
+      /** Site-wide OG badge — granted to early Kyro members. */
+      og: v.optional(v.boolean()),
+      /** Kyro Founder strips the Admin badge from their own profile. */
+      adminBadgeRemoved: v.optional(v.boolean()),
 
       // --- Kyro profile + presence ---
       /** Unique, lowercased handle used for @mentions and friend search. */

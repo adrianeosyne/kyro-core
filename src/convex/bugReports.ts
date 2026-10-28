@@ -1,6 +1,13 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { hydrateUsers, requireUser } from "./lib";
+import { hydrateUsers, requireUser, type Ctx } from "./lib";
+
+/** Site admins and site moderators may triage bug reports.
+ *  (moderators only review; admins + founder grant roles too).
+ */
+export function isAdminOrMod(user: { role?: string; siteModerator?: boolean }): boolean {
+  return user.role === "admin" || user.siteModerator === true;
+}
 
 /** File a bug from Settings → My Account → Bug hunting. */
 export const create = mutation({
@@ -44,12 +51,12 @@ export const mine = query({
   },
 });
 
-/** Every bug report — admins only, used for the staff view in Settings. */
+/** Every bug report — admins/moderators, used by the Admin Portal. */
 export const list = query({
   args: {},
   handler: async (ctx) => {
     const { id, user } = await requireUser(ctx);
-    if (user.role !== "admin") return [];
+    if (!isAdminOrMod(user)) return [];
     const reports = await ctx.db
       .query("bugReports")
       .order("desc")
@@ -85,8 +92,8 @@ export const updateStatus = mutation({
   },
   handler: async (ctx, { reportId, status, staffNote }) => {
     const { user } = await requireUser(ctx);
-    if (user.role !== "admin") {
-      throw new Error("Only Kyro admins can triage bug reports.");
+    if (!isAdminOrMod(user)) {
+      throw new Error("Only Kyro staff can triage bug reports.");
     }
     const report = await ctx.db.get(reportId);
     if (!report) throw new Error("That bug report no longer exists.");

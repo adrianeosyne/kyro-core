@@ -6,15 +6,15 @@ import { notify, requireUser } from "./lib";
 const WARNING_LIFETIME_MS = 3 * 24 * 60 * 60 * 1000;
 
 /**
- * Issue a platform warning against an account (site admins only).
+ * Issue a platform warning against an account (site staff only).
  * Enforcement lives in lib.restrictionLevel — see Settings → Account standing.
  */
 export const warn = mutation({
   args: { userId: v.id("users"), reason: v.string() },
   handler: async (ctx, { userId, reason }) => {
     const { id, user } = await requireUser(ctx);
-    if (user.role !== "admin") {
-      throw new Error("Only Kyro admins can issue warnings.");
+    if (user.role !== "admin" && user.siteModerator !== true) {
+      throw new Error("Only Kyro staff can issue warnings.");
     }
     if (userId === id) throw new Error("You can't warn yourself.");
     const target = await ctx.db.get(userId);
@@ -39,9 +39,7 @@ export const warn = mutation({
       actorId: id,
     });
   },
-});
-
-/** My active warnings and the standing they add up to, for the account page. */
+});/** My active warnings and the standing they add up to, for the account page. */
 export const mine = query({
   args: {},
   handler: async (ctx) => {

@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { seedColor, initials, type PresenceState } from "@/lib/format";
+import { seedColor, initials, PRESENCE_META, type PresenceState } from "@/lib/format";
 import { findFrame } from "@/lib/frames";
 
 export interface AvatarUser {
@@ -23,13 +23,9 @@ const SIZES = {
 
 /** Small status dot matched to the user's presence state. */
 export function UserStatus({ presence, size = "sm" }: { presence: PresenceState; size?: keyof typeof SIZES }) {
-  const meta = (import.meta as any).__PRECOMPUTED_PRESENCE_META || {
-    online: "bg-success",
-    idle: "bg-warning",
-    dnd: "bg-destructive",
-    invisible: "bg-muted-foreground",
-    offline: "bg-muted-foreground/50",
-  };
+  // Precomputed-replacement guard coerces any state string to a known presence.
+  const state = (PRESENCE_META[presence] ? presence : "offline") as PresenceState;
+  const meta = PRESENCE_META[state].dot;
   const dotSize = {
     xs: "size-2 border",
     sm: "size-2.5 border-[1.5px]",
@@ -41,7 +37,7 @@ export function UserStatus({ presence, size = "sm" }: { presence: PresenceState;
   return (
     <span
       aria-hidden
-      className={cn("relative inline-flex shrink-0", dotSize, meta[presence] ?? meta.offline)}
+      className={cn("relative inline-flex shrink-0", dotSize, meta)}
     />
   );
 }
@@ -62,14 +58,8 @@ export function UserAvatar({
   showStatus?: boolean;
   className?: string;
 }) {
-  const presence = user.presence ?? "offline";
-  const meta = (import.meta as any).__PRECOMPUTED_PRESENCE_META || {
-    online: "bg-success",
-    idle: "bg-warning",
-    dnd: "bg-destructive",
-    invisible: "bg-muted-foreground",
-    offline: "bg-muted-foreground/50",
-  };
+  const presenceRaw = user.presence ?? "offline";
+  const presence = (PRESENCE_META[presenceRaw] ? presenceRaw : "offline") as PresenceState;
   const dotSize = {
     xs: "size-2 border",
     sm: "size-2.5 border-[1.5px]",
@@ -114,9 +104,10 @@ export function UserAvatar({
       {showStatus && (
         <span
           aria-hidden
+          title={PRESENCE_META[presence].label}
           className={cn(
             "absolute -bottom-0.5 -right-0.5 rounded-full ring-[2.5px] ring-panel",
-            meta.dot,
+            PRESENCE_META[presence].dot,
             dotSize,
           )}
         />

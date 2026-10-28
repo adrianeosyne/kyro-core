@@ -81,7 +81,7 @@ export interface PublicUser {
   /**
    * Global (platform-wide) badges shown in the profile's own badge shelf —
    * separate from community roles. Always in this order:
-   * founder, admin, moderator, verified.
+   * founder, admin, moderator, bughunter, vip, og, verified.
    */
   badges: GlobalBadge[];
   /** External links shown on the profile, in the order they were saved. */
@@ -104,7 +104,14 @@ export interface PublicUser {
 export const FOUNDER_USERNAME = "adrianeosyne";
 
 /** A platform-wide badge; never scoped to a single community. */
-export type GlobalBadge = "founder" | "admin" | "moderator" | "verified";
+export type GlobalBadge =
+  | "founder"
+  | "admin"
+  | "moderator"
+  | "verified"
+  | "bughunter"
+  | "vip"
+  | "og";
 
 /**
  * Active (unexpired) staff warnings on an account: 0 = clean, 1 = limited,
@@ -140,9 +147,16 @@ export async function hydrateUser(
     (user.username ?? "").toLowerCase() === FOUNDER_USERNAME;
   const badges: GlobalBadge[] = [];
   if (isFounder) badges.push("founder");
-  // Kyro's founder runs the platform, so they carry the Admin badge too.
-  if (user.role === "admin" || isFounder) badges.push("admin");
+  // Admin badge: role === "admin" always carries it. The founder also carries
+  // it by default, but may strip it from their own profile via adminBadgeRemoved.
+  const founderAdminRemoved = isFounder && user.adminBadgeRemoved === true;
+  if (user.role === "admin" || (isFounder && !founderAdminRemoved)) {
+    badges.push("admin");
+  }
   if (user.siteModerator === true) badges.push("moderator");
+  if (user.bugHunter === true) badges.push("bughunter");
+  if (user.vip === true) badges.push("vip");
+  if (user.og === true) badges.push("og");
   if (user.verified === true) badges.push("verified");
   return {
     id: user._id,

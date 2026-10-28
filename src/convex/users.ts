@@ -30,7 +30,16 @@ export const currentUser = query({
 const USERNAME_COOLDOWN_MS = 60 * 60 * 1000;
 
 /** Inline badge choices in the profile editor: a held badge, or none. */
-const PROFILE_BADGES = ["none", "founder", "admin", "moderator", "verified"];
+const PROFILE_BADGES = [
+  "none",
+  "founder",
+  "admin",
+  "moderator",
+  "verified",
+  "bughunter",
+  "vip",
+  "og",
+];
 
 /**
  * Full profile for the signed-in account, with the avatar resolved to a
@@ -200,11 +209,17 @@ export const updateProfile = mutation({
         // Mirror hydrateUser's badge derivation: you can only wear one you hold.
         const isFounder =
           (user.username ?? "").toLowerCase() === FOUNDER_USERNAME;
+        const founderAdminRemoved = isFounder && user.adminBadgeRemoved === true;
         const held = new Set<string>();
         if (isFounder) held.add("founder");
-        if (user.role === "admin" || isFounder) held.add("admin");
+        if (user.role === "admin" || (isFounder && !founderAdminRemoved)) {
+          held.add("admin");
+        }
         if (user.siteModerator === true) held.add("moderator");
         if (user.verified === true) held.add("verified");
+        if (user.bugHunter === true) held.add("bughunter");
+        if (user.vip === true) held.add("vip");
+        if (user.og === true) held.add("og");
         if (!held.has(args.primaryBadge)) {
           throw new Error("You don't hold that badge.");
         }
@@ -253,20 +268,48 @@ export const updateProfile = mutation({
  * from the account's username, so it can never be set here. Only site
  * admins may call this.
  */
+/**
+ * The founder may remove the Admin badge from their own profile at will.
+ * Anyone else keeps the badge they were granted.
+ */
+export const removeMyAdminBadge = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const { id, user } = await requireUser(ctx);
+    const isFounder =
+      (user.username ?? "").toLowerCase() === FOUNDER_USERNAME;
+    if (!isFounder) {
+      throw new Error("Only the Kyro founder can remove the admin badge.");
+    }
+    if (user.role === "admin") await ctx.db.patch(id, { role: undefined });
+    await ctx.db.patch(id, { adminBadgeRemoved: true });
+  },
+});
+
 export const setBadges = mutation({
   args: {
     userId: v.id("users"),
     admin: v.optional(v.boolean()),
     moderator: v.optional(v.boolean()),
     verified: v.optional(v.boolean()),
+    bugHunter: v.optional(v.boolean()),
+    vip: v.optional(v.boolean()),
+    og: v.optional(v.boolean()),
   },
-  handler: async (ctx, { userId, admin, moderator, verified }) => {
+  handler: async (ctx, { userId, admin, moderator, verified, bugHunter, vip, og }) => {
     const { id, user } = await requireUser(ctx);
     const isAdmin =
       user.role === "admin" ||
       (user.username ?? "").toLowerCase() === FOUNDER_USERNAME;
     if (!isAdmin) throw new Error("Only admins can manage global badges.");
-    if (admin === undefined && moderator === undefined && verified === undefined) {
+    if (
+      admin === undefined &&
+      moderator === undefined &&
+      verified === undefined &&
+      bugHunter === undefined &&
+      vip === undefined &&
+      og === undefined
+    ) {
       throw new Error("Nothing to update.");
     }
     if (admin === false && userId === id) {
@@ -275,9 +318,16 @@ export const setBadges = mutation({
     const target = await ctx.db.get(userId);
     if (!target) throw new Error("That user no longer exists.");
     const patch: Partial<Doc<"users">> = {};
-    if (admin !== undefined) patch.role = admin ? "admin" : "user";
+    if (admin !== undefined) {
+      patch.role = admin ? "admin" : "user";
+      // Clearing admin also lifts the founder's admin-badge removal flag.
+      if (admin) patch.adminBadgeRemoved = undefined;
+    }
     if (moderator !== undefined) patch.siteModerator = moderator;
     if (verified !== undefined) patch.verified = verified;
+    if (bugHunter !== undefined) patch.bugHunter = bugHunter;
+    if (vip !== undefined) patch.vip = vip;
+    if (og !== undefined) patch.og = og;
     await ctx.db.patch(userId, patch);
   },
 });
