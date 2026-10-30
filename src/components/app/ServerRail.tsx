@@ -337,7 +337,24 @@ function DiscoverDialog({
 }) {
   const [term, setTerm] = useState("");
   const [debounced, setDebounced] = useState("");
+  const join = useMutation(api.servers.join);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const results = useQuery(api.servers.discover, { term: debounced });
+
+  // Join first, then hand the id back: navigating straight to a server we
+  // never joined made every server query throw "not a member" and crash the
+  // page. Membership is what unlocks the route.
+  const joinNow = async (serverId: string) => {
+    if (busyId) return;
+    setBusyId(serverId);
+    try {
+      await join({ serverId: serverId as Id<"servers"> });
+      onJoin(serverId);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not join.");
+      setBusyId(null);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -385,8 +402,17 @@ function DiscoverDialog({
                     {server.description ? ` · ${server.description}` : ""}
                   </p>
                 </div>
-                <Button size="sm" onClick={() => onJoin(server.id)}>
-                  Join
+                <Button
+                  size="sm"
+                  onClick={() =>
+                    server.isJoined ? onJoin(server.id) : void joinNow(server.id)
+                  }
+                  disabled={busyId === server.id}
+                >
+                  {busyId === server.id ? (
+                    <Loader2 className="mr-1.5 size-4 animate-spin" />
+                  ) : null}
+                  {server.isJoined ? "Open" : "Join"}
                 </Button>
               </div>
             ))

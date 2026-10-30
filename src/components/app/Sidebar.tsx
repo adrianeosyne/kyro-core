@@ -73,12 +73,22 @@ export function Sidebar({
 /* ------------------------------------------------------------------ */
 
 function ServerSection({ serverId }: { serverId: string }) {
-  const serverQuery = useQuery(api.servers.get, {
+  // Membership first: `servers.get` and `channels.list` both *throw* for a
+  // non-member, and the sidebar sits outside the route error boundary — so a
+  // not-yet-joined server used to crash the whole frame. Ask the safe probe,
+  // and only subscribe to the throwing queries once we know we're inside.
+  const access = useQuery(api.servers.joinState, {
     serverId: serverId as Id<"servers">,
   });
-  const listing = useQuery(api.channels.list, {
-    serverId: serverId as Id<"servers">,
-  });
+  const canEnter = access?.isMember === true;
+  const serverQuery = useQuery(
+    api.servers.get,
+    canEnter ? { serverId: serverId as Id<"servers"> } : "skip",
+  );
+  const listing = useQuery(
+    api.channels.list,
+    canEnter ? { serverId: serverId as Id<"servers"> } : "skip",
+  );
   const createCategory = useMutation(api.channels.createCategory);
   const leave = useMutation(api.servers.leave);
   const setMuted = useMutation(api.servers.setMuted);
@@ -128,6 +138,14 @@ function ServerSection({ serverId }: { serverId: string }) {
     ];
     return result.filter((group) => group.channels.length > 0);
   }, [listing]);
+
+  if (access !== undefined && !canEnter) {
+    return (
+      <p className="px-4 py-6 text-center text-xs leading-5 text-muted-foreground">
+        You're not a member of this community yet — join to see its channels.
+      </p>
+    );
+  }
 
   if (!serverQuery || !listing) {
     return (

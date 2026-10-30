@@ -265,6 +265,67 @@ export const previewByTag = query({
   },
 });
 
+/**
+ * Non-throwing membership probe for the routes under /dashboard/s/:id.
+ *
+ * Every other server query demands membership and throws without it, which
+ * turned "you're not a member yet" (an invite race, a stale link, a dialog
+ * that skipped the join) into a full-page crash. This one answers instead of
+ * throwing so the UI can offer a Join button.
+ */
+export const joinState = query({
+  args: { serverId: v.id("servers") },
+  handler: async (ctx, { serverId }) => {
+    const { id } = await requireUser(ctx);
+    const server = await ctx.db.get(serverId);
+    if (!server) {
+      return {
+        exists: false as const,
+        isMember: false,
+        isPublic: false,
+        banned: false,
+        name: null as string | null,
+        description: null as string | null,
+        iconUrl: null as string | null,
+        memberCount: 0,
+        ownerId: null as string | null,
+      };
+    }
+    const [member, banned, memberRows, iconUrl] = await Promise.all([
+      ctx.db
+        .query("serverMembers")
+        .withIndex("by_server_user", (q) =>
+          q.eq("serverId", serverId).eq("userId", id),
+        )
+        .unique(),
+      ctx.db
+        .query("bans")
+        .withIndex("by_server_user", (q) =>
+          q.eq("serverId", serverId).eq("userId", id),
+        )
+        .unique(),
+      ctx.db
+        .query("serverMembers")
+        .withIndex("by_server", (q) => q.eq("serverId", serverId))
+        .collect(),
+      server.iconStorageId
+        ? ctx.storage.getUrl(server.iconStorageId)
+        : Promise.resolve(null),
+    ]);
+    return {
+      exists: true as const,
+      isMember: member !== null,
+      isPublic: server.isPublic,
+      banned: banned !== null,
+      name: server.name,
+      description: server.description ?? null,
+      iconUrl,
+      memberCount: memberRows.length,
+      ownerId: server.ownerId as string,
+    };
+  },
+});
+
 export const get = query({
   args: { serverId: v.id("servers") },
   handler: async (ctx, { serverId }) => {
