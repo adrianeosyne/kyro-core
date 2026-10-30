@@ -2,18 +2,27 @@ import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import {
+  AlertTriangle,
   ArrowLeft,
+  Ban,
   ChevronDown,
   ChevronRight,
   ChevronUp,
   Copy,
+  Eye,
   GripVertical,
   Hash,
+  Link2,
   Loader2,
+  MessagesSquare,
+  Palette,
   Pencil,
   Plus,
+  Settings,
+  Shield,
   Trash2,
   User,
+  Users,
   X,
 } from "@/components/icons";
 import { UserAvatar } from "@/components/app/UserAvatar";
@@ -33,6 +42,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { InviteDialog } from "@/components/app/dialogs";
+import { motion } from "framer-motion";
 import {
   ALL_PERMISSIONS,
   DEFAULT_ROLE_COLORS,
@@ -142,17 +152,32 @@ export function ServerSettings({ serverId }: { serverId: string }) {
     PERMISSIONS.VIEW_AUDIT_LOG,
   );
 
-  const TABS: { id: TabId; label: string; show: boolean }[] = [
-    { id: "overview", label: "Overview", show: canManage },
-    { id: "theme", label: "Theme", show: canManage },
-    { id: "channels", label: "Channels", show: canChannels },
-    { id: "roles", label: "Roles", show: canRoles },
-    { id: "members", label: "Members", show: canRoles || canBans },
-    { id: "invites", label: "Invites", show: canInvites },
-    { id: "bans", label: "Bans", show: canBans },
-    { id: "reports", label: "Reports", show: canBans || canManage },
-    { id: "audit", label: "Audit log", show: canAudit },
-    { id: "danger", label: "Danger zone", show: server.isOwner },
+  const TABS: {
+    id: TabId;
+    label: string;
+    show: boolean;
+    icon: typeof Settings;
+  }[] = [
+    { id: "overview", label: "Overview", show: canManage, icon: Settings },
+    { id: "theme", label: "Theme", show: canManage, icon: Palette },
+    { id: "channels", label: "Channels", show: canChannels, icon: Hash },
+    { id: "roles", label: "Roles", show: canRoles, icon: Shield },
+    { id: "members", label: "Members", show: canRoles || canBans, icon: Users },
+    { id: "invites", label: "Invites", show: canInvites, icon: Link2 },
+    { id: "bans", label: "Bans", show: canBans, icon: Ban },
+    {
+      id: "reports",
+      label: "Reports",
+      show: canBans || canManage,
+      icon: MessagesSquare,
+    },
+    { id: "audit", label: "Audit log", show: canAudit, icon: Eye },
+    {
+      id: "danger",
+      label: "Danger zone",
+      show: server.isOwner,
+      icon: AlertTriangle,
+    },
   ];
   const visibleTabs = TABS.filter((entry) => entry.show);
   const activeTab = visibleTabs.some((entry) => entry.id === tab) ? tab : visibleTabs[0]?.id ?? "overview";
@@ -352,12 +377,16 @@ export function ServerSettings({ serverId }: { serverId: string }) {
     }
   };
 
-  const activeEntry = visibleTabs.find((entry) => entry.id === activeTab);
 
   return (
     <div className="h-full overflow-y-auto bg-background">
       {/* Community hero: identity, live numbers and the way back. */}
-      <div className="relative overflow-hidden border-b border-border/60">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.25 }}
+        className="relative overflow-hidden border-b border-border/60"
+      >
         <div
           aria-hidden
           className="absolute inset-0 bg-gradient-to-r from-brand/20 via-transparent to-cyan/15"
@@ -423,42 +452,64 @@ export function ServerSettings({ serverId }: { serverId: string }) {
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       <div className="mx-auto flex max-w-5xl gap-6 px-4 py-6 sm:px-6">
         {/* Section rail */}
-        <nav className="hidden w-52 shrink-0 flex-col gap-1 md:flex">
-          <p className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            {activeEntry?.label ?? "Settings"}
+        <nav className="hidden w-56 shrink-0 flex-col gap-1.5 md:flex">
+          <p className="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Community settings
           </p>
-          {visibleTabs.map((entry) => (
-            <button
-              key={entry.id}
-              type="button"
-              onClick={() => setTab(entry.id)}
-              className={cn(
-                "flex items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-sm transition-colors",
-                activeTab === entry.id
-                  ? "border-border/70 bg-surface font-medium text-foreground shadow-sm"
-                  : "border-transparent text-muted-foreground hover:bg-surface/60 hover:text-foreground",
-              )}
-            >
-              <span
-                className={cn(
-                  "size-1.5 rounded-full",
-                  entry.id === "danger"
-                    ? "bg-destructive"
-                    : activeTab === entry.id
-                      ? "bg-brand"
-                      : "bg-border",
-                )}
-              />
-              {entry.label}
-            </button>
-          ))}
+          <div className="flex flex-col gap-0.5 rounded-2xl border border-border/60 bg-panel p-1.5">
+            {visibleTabs.map((entry) => {
+              const Icon = entry.icon;
+              const active = activeTab === entry.id;
+              return (
+                <button
+                  key={entry.id}
+                  type="button"
+                  onClick={() => setTab(entry.id)}
+                  className={cn(
+                    "relative flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm transition-colors",
+                    active
+                      ? "font-medium text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {active && (
+                    <motion.span
+                      layoutId="server-settings-active-tab"
+                      transition={{ type: "spring", stiffness: 520, damping: 42 }}
+                      className="absolute inset-0 rounded-xl bg-surface shadow-sm ring-1 ring-border/70"
+                    />
+                  )}
+                  <Icon
+                    className={cn(
+                      "relative size-4 shrink-0 transition-colors",
+                      active
+                        ? entry.id === "danger"
+                          ? "text-destructive"
+                          : "text-brand"
+                        : "text-muted-foreground",
+                    )}
+                  />
+                  <span className="relative truncate">{entry.label}</span>
+                  {active && (
+                    <ChevronRight className="relative ml-auto size-3.5 text-muted-foreground" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </nav>
 
-        <div className="min-w-0 flex-1">
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.18, ease: "easeOut" }}
+          className="min-w-0 flex-1"
+        >
           {/* Mobile section picker */}
           {visibleTabs.length > 0 && (
             <div className="mb-4 flex gap-1 overflow-x-auto md:hidden">
@@ -479,6 +530,42 @@ export function ServerSettings({ serverId }: { serverId: string }) {
               ))}
             </div>
           )}
+
+        {activeTab === "overview" && (
+          <section className="rounded-xl border border-border/70 bg-panel p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold">Quick actions</h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  The places you visit most, one click away.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => navigate(`/dashboard/s/${serverId}`)}
+                >
+                  <Eye className="mr-1.5 size-4" /> Open community
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setTab("invites")}
+                >
+                  <Link2 className="mr-1.5 size-4" /> Invite people
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setTab("theme")}
+                >
+                  <Palette className="mr-1.5 size-4" /> Appearance
+                </Button>
+              </div>
+            </div>
+          </section>
+        )}
 
         {activeTab === "overview" && (
           <section className="rounded-xl border border-border/70 bg-panel p-5">
@@ -1065,7 +1152,7 @@ export function ServerSettings({ serverId }: { serverId: string }) {
             You don't have permission to manage this server.
           </p>
         )}
-        </div>
+        </motion.div>
       </div>
     </div>
   );

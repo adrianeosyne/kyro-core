@@ -147,6 +147,9 @@ export const list = query({
         return {
           id: message._id,
           content: message.content,
+          /** Call records render as their own system row in the timeline. */
+          kind: message.kind ?? null,
+          callDurationMs: message.callDurationMs ?? null,
           createdAt: message.createdAt,
           editedAt: message.editedAt ?? null,
           clientId: message.clientId ?? null,

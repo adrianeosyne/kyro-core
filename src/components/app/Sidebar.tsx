@@ -1,6 +1,8 @@
 import { useMutation, useQuery } from "convex/react";
 import {
   BookOpen,
+  PhoneOff,
+  Volume2,
   Compass,
   Copy,
   Hash,
@@ -297,10 +299,11 @@ function ServerSection({ serverId }: { serverId: string }) {
             {!collapsed[group.id] &&
               group.channels.map((channel) => {
                 const active = activeChannel?.params.channelId === channel.id;
+                const isVoice = channel.kind === "voice";
                 return (
                   <Link
                     key={channel.id}
-                    to={`/dashboard/s/${serverId}/c/${channel.id}`}
+                    to={`/dashboard/s/${serverId}/${isVoice ? "v" : "c"}/${channel.id}`}
                     title={channel.topic ?? channel.name}
                     className={cn(
                       "mb-0.5 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
@@ -309,7 +312,9 @@ function ServerSection({ serverId }: { serverId: string }) {
                         : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
                     )}
                   >
-                    {channel.isRules ? (
+                    {isVoice ? (
+                      <Volume2 className="size-4 shrink-0 opacity-70" />
+                    ) : channel.isRules ? (
                       <BookOpen className="size-4 shrink-0 opacity-70" />
                     ) : (
                       <Hash className="size-4 shrink-0 opacity-70" />
@@ -604,6 +609,8 @@ function HomeSection() {
           );
           const other = others[0];
           const label = conversationLabel(conversation, me?.id);
+          // A call nobody picked up is called out in the list, not just in chat.
+          const missedCall = conversation.lastMessagePreview === "Missed call";
           return (
             <Link
               key={conversation.id}
@@ -624,9 +631,21 @@ function HomeSection() {
                 size="sm"
                 showStatus={conversation.type === "dm"}
               />
-              <span className="min-w-0 flex-1 truncate">{label}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate">{label}</span>
+                {missedCall && (
+                  <span className="flex items-center gap-1 text-[11px] font-medium text-destructive">
+                    <PhoneOff className="size-3" /> Missed call
+                  </span>
+                )}
+              </span>
               {conversation.unread && (
-                <span className="size-2 shrink-0 rounded-full bg-foreground" />
+                <span
+                  className={cn(
+                    "size-2 shrink-0 rounded-full",
+                    missedCall ? "bg-destructive" : "bg-foreground",
+                  )}
+                />
               )}
             </Link>
           );

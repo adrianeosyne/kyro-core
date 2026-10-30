@@ -6,6 +6,8 @@ import {
   Ellipsis,
   Loader2,
   Pencil,
+  Phone,
+  PhoneOff,
   Reply,
   SmilePlus,
   Trash2,
@@ -50,6 +52,9 @@ export interface MessageAuthor {
 export interface MessageDto {
   id: string;
   content: string;
+  /** Call records render as their own system row instead of a chat bubble. */
+  kind?: "call_missed" | "call_ended" | null;
+  callDurationMs?: number | null;
   createdAt: number;
   editedAt: number | null;
   author: MessageAuthor | null;
@@ -346,6 +351,41 @@ function MessageRow({
       toast.error(error instanceof Error ? error.message : "Could not react.");
     }
   };
+
+  // Call records are timeline events, not chat bubbles: a centered pill with
+  // the outcome (missed call / call length) and when it happened.
+  if (message.kind === "call_missed" || message.kind === "call_ended") {
+    const missed = message.kind === "call_missed";
+    const minutes = Math.floor((message.callDurationMs ?? 0) / 60_000);
+    const seconds = Math.floor(((message.callDurationMs ?? 0) % 60_000) / 1000);
+    const label = missed
+      ? "Missed call"
+      : `Call ended · ${minutes}:${String(seconds).padStart(2, "0")}`;
+    return (
+      <div
+        className={cn(
+          "group relative mt-2.5 flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-surface/60",
+        )}
+      >
+        <span
+          className={cn(
+            "flex size-7 shrink-0 items-center justify-center rounded-full",
+            missed
+              ? "bg-destructive/15 text-destructive"
+              : "bg-success/15 text-success",
+          )}
+        >
+          {missed ? <PhoneOff className="size-3.5" /> : <Phone className="size-3.5" />}
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{label}</p>
+          <p className="text-[11px] text-muted-foreground">
+            {formatTime(message.createdAt)}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

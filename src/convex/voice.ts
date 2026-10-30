@@ -233,7 +233,9 @@ export const endCall = mutation({
     const call = await ctx.db.get(callId);
     if (!call || call.endedAt) return;
     const now = Date.now();
-    const missed = !call.answeredAt && call.callerId === id;
+    // Nobody picked up — whether the caller gave up or the callee declined,
+    // the conversation should record it as a missed call.
+    const missed = !call.answeredAt;
     await ctx.db.patch(callId, { endedAt: now, missed });
 
     // Leave a record in the conversation: a missed call that nobody picked up,
@@ -261,6 +263,39 @@ export const endCall = mutation({
       lastMessageSenderId: call.callerId,
       updatedAt: now,
     });
+  },
+});
+
+/**
+ * Calls ringing for this account right now, anywhere in the app — the global
+ * ring banner listens to this so an incoming DM call surfaces even when the
+ * conversation isn't open.
+ */
+export const incoming = query({
+  args: {},
+  handler: async (ctx) => {
+    const { id } = await requireUser(ctx);
+    const now = Date.now();
+    const rows = await ctx.db.query("calls").collect();
+    const live = rows.filter(
+      (call) =>
+        !call.endedAt &&
+        !call.answeredAt &&
+        call.calleeIds.includes(id) &&
+        now - call.startedAt < 5 * 60_000,
+    );
+    const callers = await hydrateUsers(
+      ctx,
+      live.map((call) => call.callerId),
+      id,
+    );
+    return live.map((call) => ({
+      callId: call._id as string,
+      conversationId: call.conversationId as string,
+      callerId: call.callerId as string,
+      startedAt: call.startedAt,
+      caller: callers.get(call.callerId) ?? null,
+    }));
   },
 });
 

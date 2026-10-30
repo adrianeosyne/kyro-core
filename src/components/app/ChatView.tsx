@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "convex/react";
 import { Hash, Loader2, MessagesSquare } from "@/components/icons";
 import { useEffect, useState, type ReactNode } from "react";
-import { useSearchParams } from "react-router";
+import { Navigate, useSearchParams } from "react-router";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Composer } from "@/components/app/Composer";
@@ -12,6 +12,7 @@ import {
   type ReplyTarget,
 } from "@/components/app/MessageList";
 import { ReportDialog } from "@/components/app/dialogs";
+import { DmCallHeader, VoiceRoom } from "@/components/app/Voice";
 import { UserAvatar } from "@/components/app/UserAvatar";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import { useUiStore } from "@/lib/store";
@@ -49,6 +50,18 @@ function ChatSurface({
 }: SurfaceProps) {
   const me = useQuery(api.users.me);
   const markRead = useMutation(api.messages.markContainerRead);
+  // DMs can carry a live voice call; the header drives it and the strip below
+  // the header carries the audio + controls while it's connected.
+  const dmCall = useQuery(
+    api.voice.currentCall,
+    containerType === "conversation"
+      ? { conversationId: containerId as Id<"conversations"> }
+      : "skip",
+  );
+  const endCall = useMutation(api.voice.endCall);
+  const callActive = dmCall !== null && dmCall !== undefined && (
+    dmCall.isCaller || dmCall.answeredAt !== null
+  );
   const typing = useQuery(api.messages.typingList, {
     containerType,
     containerId,
@@ -105,8 +118,24 @@ function ChatSurface({
             ))}
           </div>
         )}
+        {containerType === "conversation" && (
+          <DmCallHeader conversationId={containerId} />
+        )}
         {headerAction}
       </div>
+
+      {containerType === "conversation" && callActive && dmCall && (
+        <VoiceRoom
+          containerType="conversation"
+          containerId={containerId}
+          active
+          onLeave={() => {
+            void endCall({ callId: dmCall.id as Id<"calls"> }).catch(
+              () => undefined,
+            );
+          }}
+        />
+      )}
 
       <MessageList
         containerType={containerType}
@@ -197,6 +226,17 @@ export function ChannelChat({
           It may have been deleted, or you may no longer have access.
         </p>
       </div>
+    );
+  }
+
+  // Voice channels have their own stage view — sending a text-channel URL
+  // there (an old link, a shared invite) lands on /c/, so bounce to /v/.
+  if (channel.kind === "voice") {
+    return (
+      <Navigate
+        to={`/dashboard/s/${serverId}/v/${channelId}`}
+        replace
+      />
     );
   }
 

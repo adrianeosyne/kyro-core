@@ -11,6 +11,7 @@ import { ServerRail } from "@/components/app/ServerRail";
 import { SettingsDialog } from "@/components/app/Settings";
 import { Sidebar } from "@/components/app/Sidebar";
 import { UserBar } from "@/components/app/UserBar";
+import { IncomingCallBanner } from "@/components/app/Voice";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/use-auth";
@@ -224,6 +225,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       />
       {/* Profile popups are opened by adding ?user=<id> anywhere in the app. */}
       <ProfileCard />
+      {/* A ringing DM call surfaces over every view of the app. */}
+      <IncomingCallBanner />
     </div>
   );
 }

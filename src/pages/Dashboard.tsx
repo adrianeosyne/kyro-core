@@ -93,8 +93,19 @@ function ServerIndexRoute() {
     );
   }
 
-  const first = channels.channels[0];
-  if (first) return <Navigate to={`/dashboard/s/${serverId}/c/${first.id}`} replace />;
+  // Prefer a text channel as the landing view; fall back to the first voice
+  // channel (routed through /v/) when that's all the community has.
+  const firstText = channels.channels.find(
+    (channel) => channel.kind === "text",
+  );
+  const first = firstText ?? channels.channels[0];
+  if (first)
+    return (
+      <Navigate
+        to={`/dashboard/s/${serverId}/${first.kind === "voice" ? "v" : "c"}/${first.id}`}
+        replace
+      />
+    );
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
