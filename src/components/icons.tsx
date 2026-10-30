@@ -478,6 +478,35 @@ export const MonitorSmartphone = (props: IconProps) => (
   </Icon>
 );
 
+export const Phone = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M7.5 3.5h-2A2 2 0 0 0 3.6 5.9c.5 4.6 2.4 8.9 5.4 12.1a14 14 0 0 0 9.4 4.4 2 2 0 0 0 2-2v-1.9a2 2 0 0 0-1.6-2l-2.7-.5a2 2 0 0 0-2 .8l-.7 1a11 11 0 0 1-5.4-5.4l1-.7a2 2 0 0 0 .8-2l-.5-2.7a2 2 0 0 0-2-1.6Z" />
+  </Icon>
+);
+
+export const PhoneOff = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M7.5 3.5h-2A2 2 0 0 0 3.6 5.9c.5 4.6 2.4 8.9 5.4 12.1a14 14 0 0 0 9.4 4.4 2 2 0 0 0 2-2v-1.9a2 2 0 0 0-1.6-2l-2.7-.5a2 2 0 0 0-2 .8l-.7 1a11 11 0 0 1-5.4-5.4l1-.7a2 2 0 0 0 .8-2l-.5-2.7a2 2 0 0 0-2-1.6Z" />
+    <path d="M3 3l18 18" />
+  </Icon>
+);
+
+export const Smartphone = (props: IconProps) => (
+  <Icon {...props}>
+    <rect x="6" y="2.5" width="12" height="19" rx="3" />
+    <path d="M10.7 5.2h2.6" />
+    <path d="M11.4 18.6h1.2" />
+  </Icon>
+);
+
+export const Tablet = (props: IconProps) => (
+  <Icon {...props}>
+    <rect x="4" y="2.5" width="16" height="19" rx="3" />
+    <path d="M11.1 18.4h1.8" />
+    <path d="M7.2 5.6h9.6" />
+  </Icon>
+);
+
 export const Headphones = (props: IconProps) => (
   <Icon {...props}>
     <path d="M4.5 15.5V12a7.5 7.5 0 0 1 15 0v3.5" />

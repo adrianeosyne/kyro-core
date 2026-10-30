@@ -8,6 +8,7 @@ import {
   Loader2,
   Plus,
   ShieldAlert,
+  Volume2,
   X,
 } from "@/components/icons";
 import { useEffect, useState } from "react";
@@ -28,6 +29,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { inviteUrl } from "@/lib/site";
 
 /** Create a community — free, no limits beyond abuse protection. */
 export function CreateCommunityDialog({
@@ -161,7 +163,8 @@ export function InviteDialog({
   }, []);
   const [copied, setCopied] = useState<string | null>(null);
 
-  const linkFor = (code: string) => `${window.location.origin}/invite/${code}`;
+  // Canonical Kyro origin — invites point at kyro.nylix.org everywhere.
+  const linkFor = (code: string) => inviteUrl(code);
 
   const create = async () => {
     setBusy(true);
@@ -318,6 +321,7 @@ export function CreateChannelDialog({
   const [name, setName] = useState("");
   const [topic, setTopic] = useState("");
   const [categoryId, setCategoryId] = useState<string>("");
+  const [kind, setKind] = useState<"text" | "voice">("text");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -331,11 +335,17 @@ export function CreateChannelDialog({
         name,
         topic: topic || undefined,
         categoryId: categoryId ? (categoryId as Id<"categories">) : null,
+        kind,
       });
       onOpenChange(false);
       setName("");
       setTopic("");
-      navigate(`/dashboard/s/${serverId}/c/${channelId}`);
+      setKind("text");
+      navigate(
+        kind === "voice"
+          ? `/dashboard/s/${serverId}/v/${channelId}`
+          : `/dashboard/s/${serverId}/c/${channelId}`,
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create the channel.");
     } finally {
@@ -349,14 +359,44 @@ export function CreateChannelDialog({
         <DialogHeader>
           <DialogTitle>Create channel</DialogTitle>
           <DialogDescription>
-            Text channels are where people talk in a community.
+            Text channels are for talking in writing; voice channels host live
+            audio everyone can drop into.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="grid gap-4">
           <div className="grid gap-2">
+            <Label>Channel type</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {(
+                [
+                  { value: "text", label: "Text", icon: Hash },
+                  { value: "voice", label: "Voice", icon: Volume2 },
+                ] as const
+              ).map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setKind(option.value)}
+                  className={
+                    kind === option.value
+                      ? "flex items-center justify-center gap-2 rounded-md border border-primary/60 bg-primary/10 px-3 py-2 text-sm font-medium"
+                      : "flex items-center justify-center gap-2 rounded-md border border-border/70 px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  }
+                >
+                  <option.icon className="size-4" />
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="grid gap-2">
             <Label htmlFor="channel-name">Channel name</Label>
             <div className="flex items-center gap-2 rounded-md border border-input bg-background px-3">
-              <Hash className="size-4 text-muted-foreground" />
+              {kind === "voice" ? (
+                <Volume2 className="size-4 text-muted-foreground" />
+              ) : (
+                <Hash className="size-4 text-muted-foreground" />
+              )}
               <input
                 id="channel-name"
                 autoFocus

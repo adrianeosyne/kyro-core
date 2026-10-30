@@ -120,7 +120,8 @@ export interface PublicUser {
   /**
    * Global (platform-wide) badges shown in the profile's own badge shelf —
    * separate from community roles. Always in this order:
-   * founder, admin, moderator, bughunter, vip, og, verified.
+   * founder, admin, moderator, bughunter, vip, og, verified, supporter,
+   * donator, partner.
    */
   badges: GlobalBadge[];
   /** External links shown on the profile, in the order they were saved. */
@@ -129,6 +130,8 @@ export interface PublicUser {
   avatarFrame: string | null;
   /** Account creation timestamp, shown as "member since" on profiles. */
   memberSince: number | null;
+  /** Device class the account was last seen on, for the platform indicator. */
+  device: "desktop" | "mobile" | "tablet" | null;
   /** Pronouns shown on the profile card, e.g. "He/Him". */
   pronouns: string | null;
   /** The badge this person chose to show next to their name in chat. */
@@ -150,7 +153,15 @@ export type GlobalBadge =
   | "verified"
   | "bughunter"
   | "vip"
-  | "og";
+  | "og"
+  | "supporter"
+  | "donator"
+  | "partner";
+
+/** True when this handle is Kyro's founder (the only holder by birth). */
+export function isFounderHandle(username: string | null | undefined): boolean {
+  return (username ?? "").toLowerCase() === FOUNDER_USERNAME;
+}
 
 /**
  * Active (unexpired) staff warnings on an account: 0 = clean, 1 = limited,
@@ -182,10 +193,14 @@ export async function hydrateUser(
       ? ctx.storage.getUrl(user.bannerStorageId)
       : Promise.resolve(null),
   ]);
-  const isFounder =
-    (user.username ?? "").toLowerCase() === FOUNDER_USERNAME;
+  const isFounder = isFounderHandle(user.username);
   const badges: GlobalBadge[] = [];
-  if (isFounder) badges.push("founder");
+  // Founder badge: the founder always holds it (unless they stripped it from
+  // their own profile), plus anyone the founder explicitly granted it to.
+  const founderBadgeHeld = isFounder
+    ? user.founderBadgeRemoved !== true
+    : user.founderBadge === true;
+  if (founderBadgeHeld) badges.push("founder");
   // Admin badge: role === "admin" always carries it. The founder also carries
   // it by default, but may strip it from their own profile via adminBadgeRemoved.
   const founderAdminRemoved = isFounder && user.adminBadgeRemoved === true;
@@ -197,6 +212,9 @@ export async function hydrateUser(
   if (user.vip === true) badges.push("vip");
   if (user.og === true) badges.push("og");
   if (user.verified === true) badges.push("verified");
+  if (user.supporter === true) badges.push("supporter");
+  if (user.donator === true) badges.push("donator");
+  if (user.partner === true) badges.push("partner");
   return {
     id: user._id,
     username: user.username ?? null,
@@ -214,6 +232,7 @@ export async function hydrateUser(
     links: (user.links ?? []).slice(0, 6),
     avatarFrame: user.avatarFrame ?? null,
     memberSince: user.createdAt ?? null,
+    device: user.device ?? null,
     pronouns: user.pronouns ?? null,
     primaryBadge: user.primaryBadge ?? null,
     profileTheme: user.profileTheme ?? null,

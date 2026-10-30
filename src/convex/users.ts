@@ -6,11 +6,13 @@ import {
   FOUNDER_USERNAME,
   hydrateUser,
   hydrateUsers,
+  isFounderHandle,
   normalizeUsername,
   requireUser,
   USERNAME_PATTERN,
 } from "./lib";
 import { PROFILE_THEME_IDS } from "../lib/profileThemes";
+import { joinKyroHq } from "./servers";
 
 /**
  * Get the current signed in user. Returns null if the user is not signed in.
@@ -39,6 +41,9 @@ const PROFILE_BADGES = [
   "bughunter",
   "vip",
   "og",
+  "supporter",
+  "donator",
+  "partner",
 ];
 
 /**
@@ -101,6 +106,8 @@ export const claimProfile = mutation({
       status: user.status ?? "online",
       lastSeen: Date.now(),
     });
+    // Everyone belongs to Kyro HQ — safe to call on every claim.
+    await joinKyroHq(ctx, id);
   },
 });
 
@@ -211,7 +218,13 @@ export const updateProfile = mutation({
           (user.username ?? "").toLowerCase() === FOUNDER_USERNAME;
         const founderAdminRemoved = isFounder && user.adminBadgeRemoved === true;
         const held = new Set<string>();
-        if (isFounder) held.add("founder");
+        if (
+          isFounder
+            ? user.founderBadgeRemoved !== true
+            : user.founderBadge === true
+        ) {
+          held.add("founder");
+        }
         if (user.role === "admin" || (isFounder && !founderAdminRemoved)) {
           held.add("admin");
         }
@@ -220,6 +233,9 @@ export const updateProfile = mutation({
         if (user.bugHunter === true) held.add("bughunter");
         if (user.vip === true) held.add("vip");
         if (user.og === true) held.add("og");
+        if (user.supporter === true) held.add("supporter");
+        if (user.donator === true) held.add("donator");
+        if (user.partner === true) held.add("partner");
         if (!held.has(args.primaryBadge)) {
           throw new Error("You don't hold that badge.");
         }
@@ -295,24 +311,50 @@ export const setBadges = mutation({
     bugHunter: v.optional(v.boolean()),
     vip: v.optional(v.boolean()),
     og: v.optional(v.boolean()),
+    supporter: v.optional(v.boolean()),
+    donator: v.optional(v.boolean()),
+    partner: v.optional(v.boolean()),
+    /** Founder is special: only Kyro's founder may ever grant it. */
+    founder: v.optional(v.boolean()),
   },
-  handler: async (ctx, { userId, admin, moderator, verified, bugHunter, vip, og }) => {
+  handler: async (
+    ctx,
+    {
+      userId,
+      admin,
+      moderator,
+      verified,
+      bugHunter,
+      vip,
+      og,
+      supporter,
+      donator,
+      partner,
+      founder,
+    },
+  ) => {
     const { id, user } = await requireUser(ctx);
-    const isAdmin =
-      user.role === "admin" ||
-      (user.username ?? "").toLowerCase() === FOUNDER_USERNAME;
+    const callerIsFounder = isFounderHandle(user.username);
+    const isAdmin = user.role === "admin" || callerIsFounder;
     if (!isAdmin) throw new Error("Only admins can manage global badges.");
+    if (founder !== undefined && !callerIsFounder) {
+      throw new Error("Only Kyro's founder can grant the Founder badge.");
+    }
     if (
       admin === undefined &&
       moderator === undefined &&
       verified === undefined &&
       bugHunter === undefined &&
       vip === undefined &&
-      og === undefined
+      og === undefined &&
+      supporter === undefined &&
+      donator === undefined &&
+      partner === undefined &&
+      founder === undefined
     ) {
       throw new Error("Nothing to update.");
     }
-    if (admin === false && userId === id) {
+    if (admin === false && userId === id && !callerIsFounder) {
       throw new Error("You can't remove your own Admin badge.");
     }
     const target = await ctx.db.get(userId);
@@ -328,6 +370,17 @@ export const setBadges = mutation({
     if (bugHunter !== undefined) patch.bugHunter = bugHunter;
     if (vip !== undefined) patch.vip = vip;
     if (og !== undefined) patch.og = og;
+    if (supporter !== undefined) patch.supporter = supporter;
+    if (donator !== undefined) patch.donator = donator;
+    if (partner !== undefined) patch.partner = partner;
+    if (founder !== undefined) {
+      if (isFounderHandle(target.username)) {
+        // The founder's own badge is a self-visibility flag, not a grant.
+        patch.founderBadgeRemoved = founder ? undefined : true;
+      } else {
+        patch.founderBadge = founder;
+      }
+    }
     await ctx.db.patch(userId, patch);
   },
 });
@@ -350,14 +403,43 @@ export const setPresence = mutation({
 });
 
 export const heartbeat = mutation({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    device: v.optional(
+      v.union(
+        v.literal("desktop"),
+        v.literal("mobile"),
+        v.literal("tablet"),
+      ),
+    ),
+  },
+  handler: async (ctx, { device }) => {
     const { id, user } = await requireUser(ctx);
     const status =
       user.status === "idle" || user.status === "dnd" || user.status === "invisible"
         ? user.status
         : "online";
-    await ctx.db.patch(id, { lastSeen: Date.now(), status });
+    await ctx.db.patch(id, {
+      lastSeen: Date.now(),
+      status,
+      ...(device ? { device } : {}),
+    });
+  },
+});
+
+/**
+ * The founder hides or restores their own Founder badge. Only ever the
+ * founder's own account — nobody else can touch it.
+ */
+export const setMyFounderBadge = mutation({
+  args: { visible: v.boolean() },
+  handler: async (ctx, { visible }) => {
+    const { id, user } = await requireUser(ctx);
+    if (!isFounderHandle(user.username)) {
+      throw new Error("Only Kyro's founder has the Founder badge.");
+    }
+    await ctx.db.patch(id, {
+      founderBadgeRemoved: visible ? undefined : true,
+    });
   },
 });
 

@@ -9,19 +9,41 @@ export function isAdminOrMod(user: { role?: string; siteModerator?: boolean }): 
   return user.role === "admin" || user.siteModerator === true;
 }
 
+/** What kind of bug a report is, so staff can triage at a glance. */
+const BUG_CATEGORIES = [
+  "crash",
+  "ui",
+  "chat",
+  "server",
+  "auth",
+  "mobile",
+  "performance",
+  "other",
+] as const;
+
 /** File a bug from Settings → My Account → Bug hunting. */
 export const create = mutation({
-  args: { title: v.string(), details: v.optional(v.string()) },
-  handler: async (ctx, { title, details }) => {
+  args: {
+    title: v.string(),
+    details: v.optional(v.string()),
+    category: v.optional(v.string()),
+  },
+  handler: async (ctx, { title, details, category }) => {
     const { id } = await requireUser(ctx);
     const cleanTitle = title.trim().slice(0, 120);
     if (cleanTitle.length < 3) {
       throw new Error("Give the bug a short title — at least 3 characters.");
     }
+    const cleanCategory = (BUG_CATEGORIES as readonly string[]).includes(
+      category ?? "",
+    )
+      ? category
+      : "other";
     const reportId = await ctx.db.insert("bugReports", {
       reporterId: id,
       title: cleanTitle,
       details: details?.trim().slice(0, 2000) || undefined,
+      category: cleanCategory,
       status: "open",
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -44,6 +66,7 @@ export const mine = query({
       id: report._id as string,
       title: report.title,
       details: report.details ?? null,
+      category: report.category ?? "other",
       status: report.status,
       staffNote: report.staffNote ?? null,
       createdAt: report.createdAt,
@@ -70,6 +93,7 @@ export const list = query({
       id: report._id as string,
       title: report.title,
       details: report.details ?? null,
+      category: report.category ?? "other",
       status: report.status,
       staffNote: report.staffNote ?? null,
       createdAt: report.createdAt,

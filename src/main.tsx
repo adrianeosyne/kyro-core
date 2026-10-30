@@ -87,7 +87,23 @@ class RootErrorBoundary extends React.Component<
   }
 }
 
-const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
+/**
+ * Convex deployment address. A build that ships without `VITE_CONVEX_URL`
+ * (a Cloudflare Pages deploy that never received the env var, for example)
+ * used to crash the whole app with "ConvexReactClient requires a URL …",
+ * which is what produced the runtime errors and the failed join requests on
+ * kyro.nylix.org. Fall back to this project's known deployment so Kyro boots.
+ */
+const DEFAULT_CONVEX_URL = "https://whimsical-salmon-744.convex.cloud";
+const configuredConvexUrl = import.meta.env.VITE_CONVEX_URL as
+  | string
+  | undefined;
+const convexUrl =
+  typeof configuredConvexUrl === "string" &&
+  /^https:\/\/[a-z0-9-]+\.convex\.cloud$/.test(configuredConvexUrl)
+    ? configuredConvexUrl
+    : DEFAULT_CONVEX_URL;
+const convex = new ConvexReactClient(convexUrl);
 
 
 

@@ -68,23 +68,38 @@ async function logAction(
 }
 
 const BADGE_FLAGS = [
+  "founder",
   "admin",
   "moderator",
   "verified",
   "bughunter",
   "vip",
   "og",
+  "supporter",
+  "donator",
+  "partner",
 ] as const;
 type BadgeFlag = (typeof BADGE_FLAGS)[number];
 
+/** Mirrors hydrateUser's badge derivation so the portal agrees with profiles. */
 function badgeFlags(user: Doc<"users">): BadgeFlag[] {
   const flags: BadgeFlag[] = [];
-  if (isAdmin(user)) flags.push("admin");
+  const founder = isFounder(user);
+  const founderHeld = founder
+    ? user.founderBadgeRemoved !== true
+    : user.founderBadge === true;
+  if (founderHeld) flags.push("founder");
+  if (user.role === "admin" || (founder && user.adminBadgeRemoved !== true)) {
+    flags.push("admin");
+  }
   if (user.siteModerator === true) flags.push("moderator");
   if (user.verified === true) flags.push("verified");
   if (user.bugHunter === true) flags.push("bughunter");
   if (user.vip === true) flags.push("vip");
   if (user.og === true) flags.push("og");
+  if (user.supporter === true) flags.push("supporter");
+  if (user.donator === true) flags.push("donator");
+  if (user.partner === true) flags.push("partner");
   return flags;
 }
 

@@ -95,6 +95,11 @@ export const createAccount = action({
       shouldLinkViaPhone: false,
     });
 
+    // Every new account lands in Kyro HQ automatically.
+    await ctx.runMutation(internal.servers.joinHqInternal, {
+      userId: user._id,
+    });
+
     return user._id;
   },
 });

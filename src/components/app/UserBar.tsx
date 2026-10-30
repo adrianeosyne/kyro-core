@@ -8,7 +8,8 @@ import {
   VolumeX,
 } from "@/components/icons";
 import { api } from "@/convex/_generated/api";
-import { UserAvatar } from "@/components/app/UserAvatar";
+import { DeviceBadge, UserAvatar } from "@/components/app/UserAvatar";
+import { ServerTagChip } from "@/components/app/ServerTag";
 import { CrownBadge } from "@/components/app/CrownBadge";
 import { InlineBadge } from "@/components/app/GlobalBadges";
 import { useAuth } from "@/hooks/use-auth";
@@ -120,13 +121,9 @@ export function UserBar({ onOpenSettings }: { onOpenSettings?: () => void }) {
                   <CrownBadge label="Server owner" />
                 ) : null}
                 {me.serverTag && (
-                  <span
-                    title={`Community tag “${me.serverTag}” — shown next to your name everywhere on Kyro.`}
-                    className="shrink-0 cursor-help rounded border border-border/70 bg-surface px-1 py-px text-[9px] font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
-                  >
-                    {me.serverTag}
-                  </span>
+                  <ServerTagChip tag={me.serverTag} ownerName={me.name} />
                 )}
+                <DeviceBadge device={me.device} />
               </span>
               <span className="block truncate text-xs leading-tight text-muted-foreground">
                 {me.customStatus || `@${me.username ?? "new"}`}

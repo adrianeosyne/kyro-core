@@ -1,9 +1,12 @@
+import { Monitor, Smartphone, Tablet } from "@/components/icons";
 import { cn } from "@/lib/utils";
 import {
   seedColor,
   initials,
   PRESENCE_META,
   normalizePresence,
+  DEVICE_META,
+  type DeviceKind,
   type PresenceState,
 } from "@/lib/format";
 import { findFrame } from "@/lib/frames";
@@ -96,6 +99,36 @@ export function PresenceDot({
           }}
         />
       )}
+    </span>
+  );
+}
+
+/**
+ * Platform indicator — the device this person is currently on. Shown next to
+ * names and profiles so members can tell mobile from desktop at a glance.
+ */
+export function DeviceBadge({
+  device,
+  className,
+}: {
+  device?: DeviceKind | string | null;
+  className?: string;
+}) {
+  if (!device || !(device in DEVICE_META)) return null;
+  const kind = device as DeviceKind;
+  const meta = DEVICE_META[kind];
+  const Icon = kind === "mobile" ? Smartphone : kind === "tablet" ? Tablet : Monitor;
+  return (
+    <span
+      title={`Active on ${meta.label.toLowerCase()}`}
+      aria-label={`Active on ${meta.label.toLowerCase()}`}
+      className={cn(
+        "inline-flex shrink-0 items-center text-muted-foreground/70 transition-colors hover:text-foreground",
+        className,
+      )}
+    >
+      <Icon className="size-3" />
+      <span className="sr-only">{meta.label}</span>
     </span>
   );
 }

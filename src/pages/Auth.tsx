@@ -160,21 +160,6 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
     }
   };
 
-  const handleGuestLogin = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      await signIn("anonymous");
-      navigate(redirect);
-    } catch (err) {
-      console.error("Guest login error:", err);
-      setError(
-        `Failed to sign in as guest: ${err instanceof Error ? err.message : "Unknown error"}`,
-      );
-      setIsLoading(false);
-    }
-  };
-
   const startRegister = () => {
     setStep("register");
     setError(null);
@@ -311,28 +296,6 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
                       <ArrowRight className="h-4 w-4" />
                     )}
                     Sign in
-                  </Button>
-
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <span className="w-full border-t" />
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-background px-2 text-muted-foreground">
-                        Or
-                      </span>
-                    </div>
-                  </div>
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full"
-                    onClick={handleGuestLogin}
-                    disabled={isLoading}
-                  >
-                    <UserX className="mr-2 h-4 w-4" />
-                    Continue as Guest
                   </Button>
 
                   <p className="text-center text-sm text-muted-foreground">

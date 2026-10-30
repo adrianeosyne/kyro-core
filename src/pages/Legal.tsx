@@ -13,7 +13,7 @@ const TERMS: Section[] = [
   {
     heading: "2. Your account",
     body: [
-      "You may sign in with an email one-time code or continue as a guest. You are responsible for the activity that happens under your account.",
+      "You may create an account with your email and password. You are responsible for the activity that happens under your account.",
       "Handles (@usernames) are unique and may be reclaimed if they violate these terms or remain associated with abandoned accounts.",
       "You must be at least 13 years old (or the minimum age required in your country) to use Kyro.",
     ],
@@ -59,7 +59,7 @@ const PRIVACY: Section[] = [
   {
     heading: "What we collect",
     body: [
-      "Account data: the email address used to sign in (or guest account marker), the @username and display name you choose, avatar, bio, status and preferences.",
+      "Account data: the email address used to sign in, the @username and display name you choose, avatar, bio, status and preferences.",
       "Content data: messages, replies, attachments, reactions and community membership records you create.",
       "Operational data: session records used to keep you signed in and to let you review or revoke active devices, plus basic timestamps needed for read state and notifications.",
     ],

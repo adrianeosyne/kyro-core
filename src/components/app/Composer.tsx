@@ -87,7 +87,7 @@ export function Composer({
     }
   };
 
-  const addFiles = async (files: FileList | null) => {
+  const addFiles = async (files: FileList | File[] | null) => {
     if (!files || files.length === 0) return;
     const room = MAX_ATTACHMENTS - attachments.length;
     if (room <= 0) {
@@ -206,6 +206,15 @@ export function Composer({
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
               void send();
+            }
+          }}
+          // Paste images (screenshots, GIFs, copied files) straight from the
+          // clipboard — the browser's own text paste still works untouched.
+          onPaste={(event) => {
+            const pasted = Array.from(event.clipboardData?.files ?? []);
+            if (pasted.length > 0) {
+              event.preventDefault();
+              void addFiles(pasted);
             }
           }}
           placeholder="Message…"

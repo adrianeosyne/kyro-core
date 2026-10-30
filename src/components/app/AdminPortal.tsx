@@ -27,6 +27,7 @@ import {
 } from "@/components/app/GlobalBadges";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { BUG_CATEGORY_LABELS } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 type AdminTab =
@@ -55,18 +56,36 @@ type GrantableBadgeId =
   | "verified"
   | "bughunter"
   | "vip"
-  | "og";
+  | "og"
+  | "supporter"
+  | "donator"
+  | "partner"
+  | "founder";
 
 const BADGE_FIELDS: {
   id: GrantableBadgeId;
-  field: "admin" | "moderator" | "verified" | "bugHunter" | "vip" | "og";
+  field:
+    | "admin"
+    | "moderator"
+    | "verified"
+    | "bugHunter"
+    | "vip"
+    | "og"
+    | "supporter"
+    | "donator"
+    | "partner"
+    | "founder";
 }[] = [
+  { id: "founder", field: "founder" },
   { id: "admin", field: "admin" },
   { id: "moderator", field: "moderator" },
   { id: "verified", field: "verified" },
   { id: "bughunter", field: "bugHunter" },
   { id: "vip", field: "vip" },
   { id: "og", field: "og" },
+  { id: "supporter", field: "supporter" },
+  { id: "donator", field: "donator" },
+  { id: "partner", field: "partner" },
 ];
 
 function timeAgo(timestamp: number): string {
@@ -173,7 +192,12 @@ export function AdminPortal() {
 
       <div className="min-h-0 flex-1 overflow-y-auto p-5">
         {tab === "overview" && <OverviewTab data={data} />}
-        {tab === "badges" && <BadgesTab isAdmin={data.me.isAdmin} />}
+        {tab === "badges" && (
+          <BadgesTab
+            isAdmin={data.me.isAdmin}
+            isFounder={data.me.isFounder}
+          />
+        )}
         {tab === "reports" && <ReportsTab isAdmin={data.me.isAdmin} />}
         {tab === "bugs" && (
           <BugsTab
@@ -262,7 +286,9 @@ function OverviewTab({ data }: { data: OverviewData }) {
   const me = useQuery(api.users.me);
   const removeAdmin = useMutation(api.users.removeMyAdminBadge);
   const restoreAdmin = useMutation(api.admin.restoreMyAdminBadge);
+  const setFounderBadge = useMutation(api.users.setMyFounderBadge);
   const holdsAdmin = data.me.isAdmin && (me?.badges ?? []).includes("admin");
+  const holdsFounder = (me?.badges ?? []).includes("founder");
 
   return (
     <div className="space-y-5">
@@ -423,6 +449,41 @@ function OverviewTab({ data }: { data: OverviewData }) {
               </Button>
             </div>
           )}
+
+          {data.me.isFounder && (
+            <div className="mt-3 rounded-lg border border-blue-400/30 bg-blue-500/5 p-3">
+              <p className="text-sm font-semibold">Founder: Founder badge</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {holdsFounder
+                  ? "Your Founder badge is showing. Hide it whenever you like — and grant it to members from the Badges tab."
+                  : "Your Founder badge is hidden. Only you can ever hold or hand out this badge."}
+              </p>
+              <Button
+                size="sm"
+                variant={holdsFounder ? "outline" : "default"}
+                className="mt-2"
+                onClick={() => {
+                  void setFounderBadge({ visible: !holdsFounder })
+                    .then(() =>
+                      toast.success(
+                        holdsFounder
+                          ? "Founder badge hidden from your profile."
+                          : "Founder badge restored.",
+                      ),
+                    )
+                    .catch((error: unknown) =>
+                      toast.error(
+                        error instanceof Error
+                          ? error.message
+                          : "Could not update the badge.",
+                      ),
+                    );
+                }}
+              >
+                {holdsFounder ? "Remove from my profile" : "Restore Founder badge"}
+              </Button>
+            </div>
+          )}
         </section>
       </div>
     </div>
@@ -433,7 +494,14 @@ function OverviewTab({ data }: { data: OverviewData }) {
 /* Badge management                                                    */
 /* ------------------------------------------------------------------ */
 
-function BadgesTab({ isAdmin }: { isAdmin: boolean }) {
+function BadgesTab({
+  isAdmin,
+  isFounder,
+}: {
+  isAdmin: boolean;
+  /** Only the Kyro founder can grant or revoke the Founder badge. */
+  isFounder: boolean;
+}) {
   const [term, setTerm] = useState("");
   const members = useQuery(api.admin.searchMembers, { term });
   const setBadges = useMutation(api.users.setBadges);
@@ -509,7 +577,14 @@ function BadgesTab({ isAdmin }: { isAdmin: boolean }) {
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {BADGE_FIELDS.map((badge) => {
                   const held = member.badges.includes(badge.id);
-                  const locked = !isAdmin || member.isFounder;
+                  // The Founder badge is the founder's to hand out; nobody else
+                  // — including other admins — can grant or strip it. Their own
+                  // account badges are theirs to change too.
+                  const locked = isFounder
+                    ? false
+                    : badge.id === "founder" || member.isFounder
+                      ? true
+                      : !isAdmin;
                   return (
                     <button
                       key={badge.id}
@@ -518,7 +593,9 @@ function BadgesTab({ isAdmin }: { isAdmin: boolean }) {
                       onClick={() => void toggle(member.id, badge.field, !held)}
                       title={
                         locked
-                          ? "Only admins can change badges"
+                          ? badge.id === "founder" || member.isFounder
+                            ? "Only Kyro's founder can change these badges"
+                            : "Only admins can change badges"
                           : held
                             ? "Revoke badge"
                             : "Grant badge"
@@ -786,6 +863,9 @@ function BugsTab({
               )}
             >
               {BUG_STATUS[bug.status].label}
+            </span>
+            <span className="shrink-0 rounded border border-border/70 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+              {BUG_CATEGORY_LABELS[bug.category] ?? "Other"}
             </span>
             <p className="min-w-0 flex-1 truncate text-sm font-semibold">
               {bug.title}

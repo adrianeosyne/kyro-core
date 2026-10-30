@@ -3,7 +3,8 @@ import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { UserAvatar } from "@/components/app/UserAvatar";
+import { UserAvatar, DeviceBadge } from "@/components/app/UserAvatar";
+import { ServerTagChip } from "@/components/app/ServerTag";
 import { CrownBadge } from "@/components/app/CrownBadge";
 import { InlineBadge } from "@/components/app/GlobalBadges";
 import { Input } from "@/components/ui/input";
@@ -25,6 +26,8 @@ type Member = {
     primaryBadge?: string | null;
     /** Community tag worn next to the name, e.g. "HTML". */
     serverTag?: string | null;
+    /** Device this member is on, for the platform indicator. */
+    device?: string | null;
   };
   nickname: string | null;
   isOwner: boolean;
@@ -96,13 +99,12 @@ export function MemberList({ serverId }: { serverId: string }) {
             <CrownBadge label="Server owner" />
           ) : null}
           {member.user.serverTag && (
-            <span
-              title={`Community tag “${member.user.serverTag}” — ${member.user.name} wears it next to their name everywhere on Kyro.`}
-              className="shrink-0 cursor-help rounded border border-border/70 bg-surface px-1 py-px text-[9px] font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
-            >
-              {member.user.serverTag}
-            </span>
+            <ServerTagChip
+              tag={member.user.serverTag}
+              ownerName={member.user.name}
+            />
           )}
+          <DeviceBadge device={member.user.device} />
         </span>
         {member.user.customStatus && (
           <span className="block truncate text-xs text-muted-foreground">

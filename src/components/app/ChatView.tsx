@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from "convex/react";
 import { Hash, Loader2, MessagesSquare } from "@/components/icons";
 import { useEffect, useState, type ReactNode } from "react";
+import { useSearchParams } from "react-router";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Composer } from "@/components/app/Composer";
@@ -58,6 +59,17 @@ function ChatSurface({
     messageId?: string;
     targetLabel?: string;
   } | null>(null);
+  const [, setParams] = useSearchParams();
+
+  // Tapping a participant in a DM opens their full profile preview —
+  // banner, bio, badges and mutual friends/communities.
+  const openProfile = (userId: string) => {
+    setParams((previous) => {
+      const next = new URLSearchParams(previous);
+      next.set("user", userId);
+      return next;
+    });
+  };
 
   // Opening (or switching) a conversation clears its unread badge.
   useEffect(() => {
@@ -81,7 +93,15 @@ function ChatSurface({
         {participants && participants.length > 0 && (
           <div className="flex -space-x-2">
             {participants.slice(0, 5).map((user) => (
-              <UserAvatar key={user.id} user={user} size="xs" />
+              <button
+                key={user.id}
+                type="button"
+                title={`View ${user.name}'s profile`}
+                onClick={() => openProfile(user.id)}
+                className="rounded-full transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                <UserAvatar user={user} size="xs" />
+              </button>
             ))}
           </div>
         )}

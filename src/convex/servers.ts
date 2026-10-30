@@ -1,9 +1,15 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { mutation, query } from "./_generated/server";
+import {
+  mutation,
+  internalMutation,
+  query,
+  type MutationCtx,
+} from "./_generated/server";
 import { DEFAULT_EVERYONE_PERMISSIONS, PERMISSIONS } from "../lib/permissions";
 import {
   can,
+  FOUNDER_USERNAME,
   hydrateUsers,
   logAudit,
   notify,
@@ -219,6 +225,46 @@ export const discover = query({
 });
 
 /** Everything the sidebar needs for one community. */
+/**
+ * Public preview behind a worn community tag — name, description, member
+ * count and owner, shown when someone taps a tag on a profile or message.
+ */
+export const previewByTag = query({
+  args: { tag: v.string() },
+  handler: async (ctx, { tag }) => {
+    await requireUser(ctx);
+    const clean = tag.trim().toUpperCase();
+    if (!clean) return null;
+    const servers = await ctx.db.query("servers").collect();
+    const server = servers.find(
+      (candidate) => (candidate.tag ?? "").toUpperCase() === clean,
+    );
+    if (!server) return null;
+    const [iconUrl, owner, members] = await Promise.all([
+      server.iconStorageId
+        ? ctx.storage.getUrl(server.iconStorageId)
+        : Promise.resolve(null),
+      ctx.db.get(server.ownerId),
+      ctx.db
+        .query("serverMembers")
+        .withIndex("by_server", (q) => q.eq("serverId", server._id))
+        .collect(),
+    ]);
+    return {
+      id: server._id as string,
+      name: server.name,
+      description: server.description ?? null,
+      tag: server.tag ?? null,
+      iconUrl,
+      isPublic: server.isPublic,
+      memberCount: members.length,
+      ownerName: owner?.name ?? owner?.username ?? "Unknown",
+      ownerId: server.ownerId as string,
+      createdAt: server.createdAt ?? null,
+    };
+  },
+});
+
 export const get = query({
   args: { serverId: v.id("servers") },
   handler: async (ctx, { serverId }) => {
@@ -441,6 +487,103 @@ export const invitePreview = query({
 /* ------------------------------------------------------------------ */
 /* Mutations                                                           */
 /* ------------------------------------------------------------------ */
+
+/** Kyro HQ — the platform's home community, owned by the founder. */
+const HQ_NAME = "Kyro HQ";
+
+async function ensureMembership(
+  ctx: MutationCtx,
+  serverId: Id<"servers">,
+  userId: Id<"users">,
+): Promise<void> {
+  const rows = await ctx.db
+    .query("serverMembers")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .collect();
+  if (rows.some((row) => row.serverId === serverId)) return;
+  await ctx.db.insert("serverMembers", {
+    serverId,
+    userId,
+    roleIds: [],
+    joinedAt: Date.now(),
+  });
+}
+
+async function createHq(
+  ctx: MutationCtx,
+  ownerId: Id<"users">,
+): Promise<Id<"servers">> {
+  const serverId = await ctx.db.insert("servers", {
+    name: HQ_NAME,
+    description:
+      "The official Kyro home base — announcements, support and hangouts for everyone on Kyro.",
+    ownerId,
+    isPublic: true,
+    createdAt: Date.now(),
+  });
+  await ctx.db.insert("serverRoles", {
+    serverId,
+    name: "@everyone",
+    position: 0,
+    permissions: [...DEFAULT_EVERYONE_PERMISSIONS],
+    isDefault: true,
+  });
+  const categoryId = await ctx.db.insert("categories", {
+    serverId,
+    name: "Welcome",
+    position: 0,
+    createdAt: Date.now(),
+  });
+  await ctx.db.insert("channels", {
+    serverId,
+    categoryId,
+    name: "general",
+    topic: "Talk about anything with the Kyro community",
+    position: 0,
+    createdAt: Date.now(),
+    createdById: ownerId,
+  });
+  await ctx.db.insert("channels", {
+    serverId,
+    categoryId,
+    name: "announcements",
+    topic: "Kyro news straight from the team",
+    position: 1,
+    createdAt: Date.now(),
+    createdById: ownerId,
+  });
+  await ensureMembership(ctx, serverId, ownerId);
+  return serverId;
+}
+
+/**
+ * Every Kyro account is added to Kyro HQ automatically. The community is
+ * created on first use and owned by the founder's account when it exists.
+ */
+export async function joinKyroHq(
+  ctx: MutationCtx,
+  userId: Id<"users">,
+): Promise<void> {
+  const founder = await ctx.db
+    .query("users")
+    .withIndex("by_username", (q) => q.eq("username", FOUNDER_USERNAME))
+    .unique();
+  const servers = await ctx.db.query("servers").collect();
+  let serverId = servers.find((server) => server.name === HQ_NAME)?._id ?? null;
+  if (!serverId) {
+    serverId = await createHq(ctx, founder?._id ?? userId);
+  }
+  await ensureMembership(ctx, serverId, userId);
+  if (founder) await ensureMembership(ctx, serverId, founder._id);
+}
+
+/** Internal hook so sign-up (an action) can auto-join Kyro HQ. */
+export const joinHqInternal = internalMutation({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    await joinKyroHq(ctx, userId);
+  },
+});
 
 export const create = mutation({
   args: {

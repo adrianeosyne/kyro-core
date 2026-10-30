@@ -40,6 +40,10 @@ import {
   type Density,
   type ThemeChoice,
 } from "@/lib/store";
+import {
+  BUG_CATEGORY_IDS,
+  BUG_CATEGORY_LABELS,
+} from "@/lib/format";
 import { AVATAR_FRAMES } from "@/lib/frames";
 import { PROFILE_THEMES } from "@/lib/profileThemes";
 import { APP_TINTS } from "@/lib/tints";
@@ -107,11 +111,11 @@ export function SettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[88vh] max-w-5xl flex-col gap-0 overflow-hidden p-0">
+      <DialogContent className="flex h-[92vh] w-[calc(100vw-1.5rem)] max-w-6xl flex-col gap-0 overflow-hidden p-0 data-[state=open]:duration-200 sm:h-[88vh]">
         <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
-          <nav className="shrink-0 gap-1 border-b border-border/60 bg-panel/40 p-3 sm:w-60 sm:border-b-0 sm:border-r">
-            <DialogHeader className="mb-3 px-2 text-left">
-              <DialogTitle className="text-base">
+          <nav className="shrink-0 gap-1.5 border-b border-border/60 bg-panel/40 p-4 sm:w-72 sm:border-b-0 sm:border-r">
+            <DialogHeader className="mb-4 px-2 text-left">
+              <DialogTitle className="text-lg">
                 User settings
                 <span className="ml-2 rounded-full bg-brand/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand">
                   Kyro
@@ -121,14 +125,14 @@ export function SettingsDialog({
                 Account, appearance and privacy preferences.
               </DialogDescription>
             </DialogHeader>
-            <div className="flex gap-1 overflow-x-auto sm:flex-col">
+            <div className="flex gap-1.5 overflow-x-auto pb-1 sm:flex-col sm:overflow-visible sm:pb-0">
               {TABS.map((entry) => (
                 <button
                   key={entry.id}
                   type="button"
                   onClick={() => setTab(entry.id)}
                   className={cn(
-                    "flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-2 text-sm transition-colors",
+                    "flex shrink-0 items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm transition-all duration-150",
                     tab === entry.id
                       ? "bg-surface font-medium text-foreground shadow-sm ring-1 ring-border/70"
                       : "text-muted-foreground hover:bg-surface/60 hover:text-foreground",
@@ -141,7 +145,7 @@ export function SettingsDialog({
             </div>
           </nav>
 
-          <div className="min-h-0 flex-1 overflow-y-auto p-5">
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6 sm:px-8 sm:py-8">
             {tab === "account" && (
               <AccountTab onEditProfile={() => setTab("profile")} />
             )}
@@ -508,6 +512,8 @@ function BugRow({
   report: {
     id: string;
     title: string;
+    details?: string | null;
+    category?: string;
     status: BugStatus;
     staffNote: string | null;
     createdAt: number;
@@ -544,6 +550,9 @@ function BugRow({
           className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${meta.chip}`}
         >
           {meta.label}
+        </span>
+        <span className="shrink-0 rounded border border-border/70 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {BUG_CATEGORY_LABELS[report.category ?? "other"] ?? "Other"}
         </span>
         <span className="min-w-0 flex-1 truncate text-sm font-semibold">
           {report.title}
@@ -604,6 +613,7 @@ function BugHunting() {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [details, setDetails] = useState("");
+  const [category, setCategory] = useState<string>("other");
   const [busy, setBusy] = useState(false);
 
   const isAdmin = me?.role === "admin";
@@ -612,11 +622,12 @@ function BugHunting() {
   const send = async () => {
     setBusy(true);
     try {
-      await submit({ title, details });
+      await submit({ title, details, category });
       toast.success("Bug report sent — thanks.");
       setOpen(false);
       setTitle("");
       setDetails("");
+      setCategory("other");
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Could not send that.",
@@ -683,6 +694,26 @@ function BugHunting() {
                 placeholder="Steps, what you expected, what you saw."
                 maxLength={2000}
               />
+            </div>
+            <div className="grid gap-2">
+              <Label>What kind of bug?</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {BUG_CATEGORY_IDS.map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setCategory(value)}
+                    className={cn(
+                      "rounded-full border px-2.5 py-1 text-xs transition-colors",
+                      category === value
+                        ? "border-brand/60 bg-brand/15 text-foreground"
+                        : "border-border/70 text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {BUG_CATEGORY_LABELS[value]}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="ghost" onClick={() => setOpen(false)}>

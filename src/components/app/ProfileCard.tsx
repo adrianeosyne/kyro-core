@@ -14,7 +14,8 @@ import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { PresenceDot, UserAvatar } from "@/components/app/UserAvatar";
+import { DeviceBadge, PresenceDot, UserAvatar } from "@/components/app/UserAvatar";
+import { ServerTagChip } from "@/components/app/ServerTag";
 import {
   GlobalBadgeIcon,
   GlobalBadges,
@@ -140,12 +141,11 @@ export function ProfileCard() {
                       primaryBadge={user.primaryBadge}
                     />
                     {user.serverTag && (
-                      <span
-                        title={`Community tag “${user.serverTag}” — ${user.name} wears it next to their name everywhere on Kyro.`}
-                        className="shrink-0 cursor-help rounded border border-border/70 bg-surface px-1 py-px text-[10px] font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
-                      >
-                        {user.serverTag}
-                      </span>
+                      <ServerTagChip
+                        tag={user.serverTag}
+                        ownerName={user.name}
+                        className="text-[10px]"
+                      />
                     )}
                   </p>
                   <p className="truncate text-sm text-muted-foreground">
@@ -166,6 +166,7 @@ export function ProfileCard() {
                 ringClassName=""
               />
               {user.customStatus || presenceMeta.label}
+              <DeviceBadge device={user.device} />
               {user.lastSeen != null && (
                 <span className="text-muted-foreground/80">
                   · last seen {formatRelative(user.lastSeen)}
@@ -242,7 +243,16 @@ export function ProfileCard() {
                     {GRANTABLE_BADGES.map((badge) => {
                       const granted = user.badges.includes(badge);
                       // Badge id → setBadges argument name (bughunter → bugHunter).
-                      const field: "admin" | "moderator" | "verified" | "bugHunter" | "vip" | "og" =
+                      const field:
+                        | "admin"
+                        | "moderator"
+                        | "verified"
+                        | "bugHunter"
+                        | "vip"
+                        | "og"
+                        | "supporter"
+                        | "donator"
+                        | "partner" =
                         badge === "bughunter" ? "bugHunter" : badge;
                       return (
                         <button

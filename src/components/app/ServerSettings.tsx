@@ -41,6 +41,7 @@ import {
   hasPermission,
 } from "@/lib/permissions";
 import { MAX_UPLOAD_BYTES, useUploadFile } from "@/lib/upload";
+import { inviteUrl, siteOrigin } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
 type TabId =
@@ -700,7 +701,7 @@ export function ServerSettings({ serverId }: { serverId: string }) {
             <div className="mt-3 rounded-md border border-border/60 bg-surface p-3">
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <span className="text-muted-foreground">
-                  {typeof window !== "undefined" ? window.location.origin : ""}/invite/
+                  {siteOrigin()}/invite/
                 </span>
                 <Input
                   value={vanityDraft}
@@ -727,7 +728,7 @@ export function ServerSettings({ serverId }: { serverId: string }) {
               <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
                 <span className="truncate">
                   {server.vanityCode
-                    ? `Current: ${window.location.origin}/invite/${server.vanityCode}`
+                    ? `Current: ${inviteUrl(server.vanityCode)}`
                     : "No custom link yet — your default invite code still works."}
                 </span>
                 {server.vanityCode && (
@@ -735,8 +736,10 @@ export function ServerSettings({ serverId }: { serverId: string }) {
                     type="button"
                     className="flex shrink-0 items-center gap-1 hover:text-foreground"
                     onClick={() => {
+                      const vanity = server.vanityCode;
+                      if (!vanity) return;
                       void navigator.clipboard
-                        .writeText(`${window.location.origin}/invite/${server.vanityCode}`)
+                        .writeText(inviteUrl(vanity))
                         .then(() => toast.success("Link copied."))
                         .catch(() => toast.error("Clipboard access was blocked by the browser."));
                     }}

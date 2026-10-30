@@ -13,6 +13,9 @@ import { cn } from "@/lib/utils";
  *  - bughunter — bug inside a scalloped ring, amber gradient
  *  - vip       — diamond, violet gradient
  *  - og        — rocket, teal gradient
+ *  - supporter — heart, rose gradient
+ *  - donator   — coin, gold gradient
+ *  - partner   — linked rings, indigo gradient
  */
 export type GlobalBadgeKey =
   | "founder"
@@ -21,7 +24,10 @@ export type GlobalBadgeKey =
   | "verified"
   | "bughunter"
   | "vip"
-  | "og";
+  | "og"
+  | "supporter"
+  | "donator"
+  | "partner";
 
 export const GLOBAL_BADGE_META: Record<
   GlobalBadgeKey,
@@ -62,6 +68,21 @@ export const GLOBAL_BADGE_META: Record<
     blurb: "Been here since the early days.",
     chip: "border-teal-400/40 bg-teal-500/10 text-teal-500 dark:text-teal-300",
   },
+  supporter: {
+    label: "Supporter",
+    blurb: "Stands behind Kyro.",
+    chip: "border-rose-400/40 bg-rose-500/10 text-rose-500 dark:text-rose-300",
+  },
+  donator: {
+    label: "Donator",
+    blurb: "Donated to help Kyro grow.",
+    chip: "border-yellow-400/40 bg-yellow-500/10 text-yellow-600 dark:text-yellow-300",
+  },
+  partner: {
+    label: "Partner",
+    blurb: "An official Kyro partner.",
+    chip: "border-indigo-400/40 bg-indigo-500/10 text-indigo-500 dark:text-indigo-300",
+  },
 };
 
 /** Badges staff can grant (founder is derived from the account). */
@@ -72,6 +93,9 @@ export const GRANTABLE_BADGES = [
   "bughunter",
   "vip",
   "og",
+  "supporter",
+  "donator",
+  "partner",
 ] as const;
 export type GrantableBadge = (typeof GRANTABLE_BADGES)[number];
 
@@ -80,9 +104,12 @@ export const BADGE_PRIORITY: GlobalBadgeKey[] = [
   "founder",
   "admin",
   "moderator",
+  "partner",
   "bughunter",
   "vip",
   "og",
+  "donator",
+  "supporter",
   "verified",
 ];
 
@@ -205,6 +232,27 @@ export function GlobalBadgeIcon({
             <stop offset="0%" stopColor="#5eead4" />
             <stop offset="55%" stopColor="#14b8a6" />
             <stop offset="100%" stopColor="#0f766e" />
+          </linearGradient>
+        )}
+        {badge === "supporter" && (
+          <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#fecdd3" />
+            <stop offset="55%" stopColor="#fb7185" />
+            <stop offset="100%" stopColor="#e11d48" />
+          </linearGradient>
+        )}
+        {badge === "donator" && (
+          <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#fef08a" />
+            <stop offset="55%" stopColor="#fbbf24" />
+            <stop offset="100%" stopColor="#b45309" />
+          </linearGradient>
+        )}
+        {badge === "partner" && (
+          <linearGradient id={gradientId} x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0%" stopColor="#c7d2fe" />
+            <stop offset="55%" stopColor="#6366f1" />
+            <stop offset="100%" stopColor="#3730a3" />
           </linearGradient>
         )}
       </defs>
@@ -370,6 +418,86 @@ export function GlobalBadgeIcon({
             stroke={`url(#${gradientId})`}
             strokeWidth="1.4"
             strokeLinecap="round"
+          />
+        </>
+      )}
+
+      {badge === "supporter" && (
+        <>
+          {/* heart */}
+          <path
+            d="M12 19.7C7.4 16.5 4.1 13.6 4.1 10.2A4.1 4.1 0 0 1 12 8.4a4.1 4.1 0 0 1 7.9 1.8c0 3.4-3.3 6.3-7.9 9.5Z"
+            fill={`url(#${gradientId})`}
+            stroke="#9f1239"
+            strokeWidth="0.9"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M8.6 7.6c1.4-.6 2.6-.2 3.2.9"
+            fill="none"
+            stroke="#ffffff"
+            strokeOpacity="0.8"
+            strokeWidth="1.4"
+            strokeLinecap="round"
+          />
+        </>
+      )}
+
+      {badge === "donator" && (
+        <>
+          {/* coin with a sparkle */}
+          <circle
+            cx="12"
+            cy="12"
+            r="8.4"
+            fill={`url(#${gradientId})`}
+            stroke="#92400e"
+            strokeWidth="0.9"
+          />
+          <circle
+            cx="12"
+            cy="12"
+            r="6.1"
+            fill="none"
+            stroke="#ffffff"
+            strokeOpacity="0.55"
+            strokeWidth="1"
+          />
+          <path
+            d="M12 7.4v9.2M14.3 9.3c-.5-.9-3.9-1.4-4.4.5-.5 1.9 4.5 1.4 4.5 3.4 0 2-3.9 1.7-4.6.5"
+            fill="none"
+            stroke="#ffffff"
+            strokeOpacity="0.9"
+            strokeWidth="1.3"
+            strokeLinecap="round"
+          />
+        </>
+      )}
+
+      {badge === "partner" && (
+        <>
+          {/* two linked rings */}
+          <circle
+            cx="9.2"
+            cy="12"
+            r="5.1"
+            fill="none"
+            stroke={`url(#${gradientId})`}
+            strokeWidth="2.4"
+          />
+          <circle
+            cx="14.8"
+            cy="12"
+            r="5.1"
+            fill="none"
+            stroke={`url(#${gradientId})`}
+            strokeWidth="2.4"
+            strokeOpacity="0.72"
+          />
+          <path
+            d="M12 9.1a5.1 5.1 0 0 0 0 5.8 5.1 5.1 0 0 0 0-5.8Z"
+            fill="#ffffff"
+            fillOpacity="0.9"
           />
         </>
       )}

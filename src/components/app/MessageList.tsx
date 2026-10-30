@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from "convex/react";
 import {
   AlertTriangle,
+  Copy,
   CornerUpLeft,
   Ellipsis,
   Loader2,
@@ -13,7 +14,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { UserAvatar } from "@/components/app/UserAvatar";
+import { DeviceBadge, UserAvatar } from "@/components/app/UserAvatar";
+import { ServerTagChip } from "@/components/app/ServerTag";
 import { CrownBadge } from "@/components/app/CrownBadge";
 import { InlineBadge } from "@/components/app/GlobalBadges";
 import { Button } from "@/components/ui/button";
@@ -41,6 +43,8 @@ export interface MessageAuthor {
     primaryBadge?: string | null;
     /** Community tag worn next to the name, e.g. "HTML". */
     serverTag?: string | null;
+    /** Device the author is on, for the platform indicator. */
+    device?: string | null;
 }
 
 export interface MessageDto {
@@ -107,6 +111,9 @@ export function MessageList({
     null,
   );
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Jump straight to the newest message when a conversation is (re)opened;
+  // without this the list starts at the top and shows the oldest history.
+  const jumpToBottomRef = useRef(true);
 
   const latest = useQuery(api.messages.list, {
     containerType,
@@ -132,6 +139,7 @@ export function MessageList({
     setHistoryKey(containerId);
     setOlderPages([]);
     setCursor(null);
+    jumpToBottomRef.current = true;
   }
 
   // Fold a freshly loaded older page into history as soon as it resolves.
@@ -150,15 +158,33 @@ export function MessageList({
   }, [olderPages, latest]);
 
   // Stick to the bottom when new messages arrive, but respect manual scrolling.
+  // On a fresh conversation (or right after switching) we force the jump first,
+  // because a container that starts scrolled to the top is never "near bottom".
   useEffect(() => {
     const element = scrollRef.current;
-    if (!element) return;
+    if (!element || latest === undefined) return;
+    if (jumpToBottomRef.current) {
+      element.scrollTop = element.scrollHeight;
+      const timer = window.setTimeout(() => {
+        jumpToBottomRef.current = false;
+      }, 700);
+      return () => window.clearTimeout(timer);
+    }
     const nearBottom =
       element.scrollHeight - element.scrollTop - element.clientHeight < 220;
     if (nearBottom) {
       element.scrollTop = element.scrollHeight;
     }
-  }, [messages.length]);
+  }, [messages.length, containerId, latest]);
+
+  // A manual scroll away from the bottom cancels the forced jump.
+  const handleScroll = () => {
+    const element = scrollRef.current;
+    if (!element) return;
+    const nearBottom =
+      element.scrollHeight - element.scrollTop - element.clientHeight < 220;
+    if (!nearBottom) jumpToBottomRef.current = false;
+  };
 
   const lastReadAt = latest?.lastReadAt ?? 0;
   const unreadFrom = messages.findIndex(
@@ -166,7 +192,11 @@ export function MessageList({
   );
 
   return (
-    <div ref={scrollRef} className="chat-scroll min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-6">
+    <div
+      ref={scrollRef}
+      onScroll={handleScroll}
+      className="chat-scroll min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-6"
+    >
       {latest === undefined ? (
         <div className="flex h-full items-center justify-center">
           <Loader2 className="size-5 animate-spin text-muted-foreground" />
@@ -366,13 +396,12 @@ function MessageRow({
                 <CrownBadge label="Server owner" />
               ) : null}
               {author?.serverTag && (
-                <span
-                  title={`Community tag “${author.serverTag}” — ${author.name} wears it next to their name everywhere on Kyro.`}
-                  className="shrink-0 cursor-help rounded border border-border/70 bg-surface px-1 py-px text-[9px] font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
-                >
-                  {author.serverTag}
-                </span>
+                <ServerTagChip
+                  tag={author.serverTag}
+                  ownerName={author.name}
+                />
               )}
+              <DeviceBadge device={author?.device} />
               <span className="text-[11px] text-muted-foreground">
                 {dayLabel(message.createdAt)} {formatTime(message.createdAt)}
               </span>
@@ -434,9 +463,17 @@ function MessageRow({
           )}
 
           {message.attachments.length > 0 && (
-            <div className="mt-1.5 flex flex-wrap gap-2">
-              {message.attachments.map((attachment) =>
-                attachment.mimeType.startsWith("image/") && attachment.url ? (
+            <div className="mt-1.5 flex flex-wrap gap-2">                {message.attachments.map((attachment) =>
+                  attachment.mimeType.startsWith("video/") && attachment.url ? (
+                    <video
+                      key={attachment.storageId}
+                      src={attachment.url}
+                      controls
+                      playsInline
+                      preload="metadata"
+                      className="max-h-72 max-w-xs rounded-lg border border-border/70 bg-black"
+                    />
+                  ) : attachment.mimeType.startsWith("image/") && attachment.url ? (
                   <a
                     key={attachment.storageId}
                     href={attachment.url}
@@ -546,6 +583,16 @@ function MessageRow({
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={() => {
+                void navigator.clipboard
+                  .writeText(message.content)
+                  .then(() => toast.success("Message copied."))
+                  .catch(() => toast.error("Could not copy that message."));
+              }}
+            >
+              <Copy className="size-4" /> Copy text
+            </DropdownMenuItem>
             {isAuthor && (
               <DropdownMenuItem
                 onClick={() => {

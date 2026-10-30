@@ -51,8 +51,26 @@ const schema = defineSchema(
       vip: v.optional(v.boolean()),
       /** Site-wide OG badge — granted to early Kyro members. */
       og: v.optional(v.boolean()),
+      /** Site-wide Supporter badge — granted to members who back Kyro. */
+      supporter: v.optional(v.boolean()),
+      /** Site-wide Donator badge — granted to members who donated. */
+      donator: v.optional(v.boolean()),
+      /** Site-wide Partner badge — granted to official Kyro partners. */
+      partner: v.optional(v.boolean()),
+      /** A Founder badge granted to someone other than the founder. */
+      founderBadge: v.optional(v.boolean()),
       /** Kyro Founder strips the Admin badge from their own profile. */
       adminBadgeRemoved: v.optional(v.boolean()),
+      /** Kyro Founder strips their own Founder badge (and can restore it). */
+      founderBadgeRemoved: v.optional(v.boolean()),
+      /** Device class last seen on, powering the platform indicator. */
+      device: v.optional(
+        v.union(
+          v.literal("desktop"),
+          v.literal("mobile"),
+          v.literal("tablet"),
+        ),
+      ),
 
       // --- Kyro profile + presence ---
       /** Unique, lowercased handle used for @mentions and friend search. */
@@ -240,6 +258,8 @@ const schema = defineSchema(
       slowMode: v.optional(v.number()),
       /** Read-only channel: only members with manage_messages may post. */
       readOnly: v.optional(v.boolean()),
+      /** `text` (default) or `voice` — voice channels host live audio rooms. */
+      kind: v.optional(v.union(v.literal("text"), v.literal("voice"))),
       lastMessageAt: v.optional(v.number()),
       lastMessageSenderId: v.optional(v.id("users")),
       createdAt: v.number(),
@@ -269,6 +289,10 @@ const schema = defineSchema(
           }),
         ),
       ),
+      /** Call messages: `call_missed`, `call_outgoing` or `call_incoming`. */
+      kind: v.optional(v.string()),
+      /** Duration of the call this message records, in milliseconds. */
+      callDurationMs: v.optional(v.number()),
     })
       .index("by_container", ["containerId", "createdAt"])
       .index("by_container_client", ["containerId", "clientId"])
@@ -430,6 +454,8 @@ const schema = defineSchema(
       reporterId: v.id("users"),
       title: v.string(),
       details: v.optional(v.string()),
+      /** What kind of bug it is, so staff can triage at a glance. */
+      category: v.optional(v.string()),
       status: v.union(
         v.literal("open"),
         v.literal("acknowledged"),
@@ -442,6 +468,46 @@ const schema = defineSchema(
     })
       .index("by_reporter", ["reporterId"])
       .index("by_status", ["status"]),
+
+    /** Live audio: one row per member currently sitting in a voice room. */
+    voiceSessions: defineTable({
+      containerType: v.union(v.literal("channel"), v.literal("conversation")),
+      containerId: v.string(),
+      userId: v.id("users"),
+      joinedAt: v.number(),
+      /** Refreshed by the client so stale sessions drop off the roster. */
+      lastSeenAt: v.number(),
+      muted: v.optional(v.boolean()),
+      deafened: v.optional(v.boolean()),
+    })
+      .index("by_container", ["containerType", "containerId"])
+      .index("by_user", ["userId"]),
+
+    /** WebRTC signaling relayed through Convex — one peer is one user id. */
+    voiceSignals: defineTable({
+      containerKey: v.string(),
+      fromId: v.id("users"),
+      toId: v.id("users"),
+      kind: v.union(v.literal("offer"), v.literal("answer"), v.literal("ice")),
+      /** JSON-encoded RTCSessionDescriptionInit / RTCIceCandidateInit. */
+      payload: v.string(),
+      createdAt: v.number(),
+    })
+      .index("by_to_container", ["toId", "containerKey"])
+      .index("by_container", ["containerKey"]),
+
+    /** DM voice calls — powers missed-call badges in the conversation list. */
+    calls: defineTable({
+      conversationId: v.id("conversations"),
+      callerId: v.id("users"),
+      calleeIds: v.array(v.id("users")),
+      startedAt: v.number(),
+      answeredAt: v.optional(v.number()),
+      endedAt: v.optional(v.number()),
+      /** True when nobody picked up before it was abandoned. */
+      missed: v.optional(v.boolean()),
+    })
+      .index("by_conversation", ["conversationId"]),
   },
   {
     schemaValidation: false,

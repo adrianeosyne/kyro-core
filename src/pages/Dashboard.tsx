@@ -10,6 +10,7 @@ import { DiscoverView } from "@/components/app/DiscoverView";
 import { FriendsView } from "@/components/app/Friends";
 import { ServerSettings } from "@/components/app/ServerSettings";
 import { ServerThemeScope } from "@/components/app/ServerThemeScope";
+import { VoiceChannelPage } from "@/components/app/VoiceChannelPage";
 
 /** The signed-in product: everything lives inside the AppShell frame and is
  *  routed underneath it — friends home, DMs, community channels and the
@@ -28,6 +29,7 @@ export default function Dashboard() {
         <Route path="dm/:conversationId" element={<DirectChatRoute />} />
         <Route path="s/:serverId" element={<ServerIndexRoute />} />
         <Route path="s/:serverId/c/:channelId" element={<ChannelRoute />} />
+        <Route path="s/:serverId/v/:channelId" element={<VoiceChannelRoute />} />
         <Route path="s/:serverId/settings/*" element={<ServerSettingsRoute />} />
         {/* Wildcard must be last: any unknown slug within the dashboard falls back
             to the current community instead of a hard 404. */}
@@ -49,6 +51,16 @@ function ChannelRoute() {
   return (
     <ServerThemeScope serverId={serverId as Id<"servers">}>
       <ChannelChat serverId={serverId} channelId={channelId} />
+    </ServerThemeScope>
+  );
+}
+
+function VoiceChannelRoute() {
+  const { serverId, channelId } = useParams();
+  if (!serverId || !channelId) return <Navigate to="/dashboard" replace />;
+  return (
+    <ServerThemeScope serverId={serverId as Id<"servers">}>
+      <VoiceChannelPage serverId={serverId} channelId={channelId} />
     </ServerThemeScope>
   );
 }

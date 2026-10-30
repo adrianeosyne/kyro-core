@@ -1,0 +1,3 @@
+# Cloudflare Pages: serve the SPA for every path so deep links
+# (/invite/:code, /dashboard/s/:serverId, /auth?returnTo=…) never 404.
+/*    /index.html   200

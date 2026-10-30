@@ -55,6 +55,7 @@ export const list = query({
           categoryId: (channel.categoryId as string | undefined) ?? null,
           position: channel.position,
           readOnly: channel.readOnly === true,
+          kind: channel.kind === "voice" ? ("voice" as const) : ("text" as const),
           isRules: access.server.rulesChannelId === channel._id,
           slowMode: channel.slowMode ?? 0,
           lastMessageAt: channel.lastMessageAt ?? 0,
@@ -73,8 +74,10 @@ export const create = mutation({
     name: v.string(),
     topic: v.optional(v.string()),
     categoryId: v.optional(v.union(v.id("categories"), v.null())),
+    /** `voice` creates a live audio room instead of a text channel. */
+    kind: v.optional(v.union(v.literal("text"), v.literal("voice"))),
   },
-  handler: async (ctx, { serverId, name, topic, categoryId }) => {
+  handler: async (ctx, { serverId, name, topic, categoryId, kind }) => {
     const { id } = await requireProfile(ctx);
     const access = await requireServerAccess(ctx, serverId, id);
     if (!can(access.permissions, PERMISSIONS.MANAGE_CHANNELS)) {
@@ -104,6 +107,7 @@ export const create = mutation({
       categoryId: categoryId ?? undefined,
       name: clean,
       topic: topic?.trim().slice(0, 300) || undefined,
+      kind: kind === "voice" ? "voice" : undefined,
       position: siblings.length,
       createdAt: Date.now(),
       createdById: id,

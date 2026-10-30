@@ -123,7 +123,7 @@ const STEPS = [
   {
     step: "01",
     title: "Create your handle",
-    body: "Sign in with an email code or jump in as a guest, then claim a unique @username that's yours.",
+    body: "Create an account with your email and password, then claim a unique @username that's yours.",
   },
   {
     step: "02",
@@ -216,7 +216,7 @@ export default function Landing() {
               </Button>
             </div>
             <p className="mt-4 text-xs text-muted-foreground">
-              Email code or one-tap guest access — no credit card, ever.
+              Email and password sign-up — no credit card, ever.
             </p>
           </Reveal>
 

@@ -124,6 +124,32 @@ export function shortName(name: string, max = 24): string {
   return name.length > max ? `${name.slice(0, max - 1)}…` : name;
 }
 
+/** Device class reported by the heartbeat, used for the platform indicator. */
+export type DeviceKind = "desktop" | "mobile" | "tablet";
+
+export const DEVICE_META: Record<
+  DeviceKind,
+  { label: string; hint: string }
+> = {
+  desktop: { label: "Desktop", hint: "on desktop" },
+  mobile: { label: "Mobile", hint: "on mobile" },
+  tablet: { label: "Tablet", hint: "on tablet" },
+};
+
+/** What kind of bug a report is — shared by the reporter and the portal. */
+export const BUG_CATEGORY_LABELS: Record<string, string> = {
+  crash: "Crash / error",
+  ui: "Visual / UI",
+  chat: "Chat & messages",
+  server: "Communities",
+  auth: "Auth / account",
+  mobile: "Mobile",
+  performance: "Performance",
+  other: "Other",
+};
+
+export const BUG_CATEGORY_IDS = Object.keys(BUG_CATEGORY_LABELS);
+
 /** Discord-style grouped message timestamps for chat histories. */
 export function conversationName(
   type: "dm" | "group",
