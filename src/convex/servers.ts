@@ -518,7 +518,7 @@ export const invitePreview = query({
         q.eq("serverId", server!._id).eq("userId", id),
       )
       .unique();
-    const [iconUrl, memberCount] = await Promise.all([
+    const [iconUrl, memberCount, ownerMap] = await Promise.all([
       server.iconStorageId
         ? ctx.storage.getUrl(server.iconStorageId)
         : Promise.resolve(null),
@@ -527,7 +527,9 @@ export const invitePreview = query({
         .withIndex("by_server", (q) => q.eq("serverId", server!._id))
         .collect()
         .then((rows) => rows.length),
+      hydrateUsers(ctx, [server.ownerId], id),
     ]);
+    const owner = ownerMap.get(server.ownerId) ?? null;
     return {
       valid: true as const,
       server: {
@@ -536,6 +538,15 @@ export const invitePreview = query({
         description: server.description ?? null,
         iconUrl,
         memberCount,
+        createdAt: server.createdAt,
+        owner: owner
+          ? {
+              id: owner.id as string,
+              name: owner.name,
+              username: owner.username,
+              avatarUrl: owner.avatarUrl,
+            }
+          : null,
       },
       alreadyMember: membership !== null,
       expiresAt,

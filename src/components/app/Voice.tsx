@@ -11,6 +11,8 @@ import {
   MicOff,
   Phone,
   PhoneOff,
+  ScreenShare,
+  ScreenShareOff,
   Volume2,
 } from "@/components/icons";
 import { DeviceBadge, UserAvatar } from "@/components/app/UserAvatar";
@@ -54,6 +56,51 @@ function isInitiator(localId: string, remoteId: string): boolean {
   return localId < remoteId;
 }
 
+/** One shared-screen tile in the call's stage, local preview or remote peer. */
+function ScreenTile({
+  label,
+  stream,
+  muted,
+  highlight,
+}: {
+  label: string;
+  stream: MediaStream | null;
+  muted?: boolean;
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "relative w-full overflow-hidden rounded-xl border bg-black sm:w-auto sm:min-w-[260px]",
+        highlight
+          ? "border-primary/60 ring-1 ring-primary/40"
+          : "border-border/70",
+      )}
+    >
+      {stream ? (
+        <video
+          autoPlay
+          playsInline
+          muted={muted}
+          ref={(element) => {
+            if (element && element.srcObject !== stream) {
+              element.srcObject = stream;
+            }
+          }}
+          className="aspect-video w-full bg-black object-contain"
+        />
+      ) : (
+        <div className="flex aspect-video w-full items-center justify-center gap-2 text-xs text-white/60">
+          <Loader2 className="size-3.5 animate-spin" /> Connecting screen…
+        </div>
+      )}
+      <span className="absolute left-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-semibold text-white">
+        {label}
+      </span>
+    </div>
+  );
+}
+
 /**
  * A live voice room: local microphone, one RTCPeerConnection per roster peer,
  * and Convex as the signaling relay. Renders the "connected" strip with the
@@ -79,11 +126,20 @@ export function VoiceRoom({
   const [muted, setMuted] = useState(false);
   const [deafened, setDeafened] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [localScreen, setLocalScreen] = useState<MediaStream | null>(null);
 
   const localStreamRef = useRef<MediaStream | null>(null);
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const handledRef = useRef<Set<string>>(new Set());
+  // Screen sharing rides the pre-negotiated video transceiver every peer gets
+  // on connect, so starting or stopping a share never needs a renegotiation.
+  const screenStreamRef = useRef<MediaStream | null>(null);
+  const videoSendersRef = useRef<Map<string, RTCRtpSender>>(new Map());
   const [remoteStreams, setRemoteStreams] = useState<
+    Record<string, MediaStream>
+  >({});
+  const [remoteScreens, setRemoteScreens] = useState<
     Record<string, MediaStream>
   >({});
 
@@ -104,7 +160,14 @@ export function VoiceRoom({
       pc.close();
       peersRef.current.delete(peerId);
     }
+    videoSendersRef.current.delete(peerId);
     setRemoteStreams((state) => {
+      if (!(peerId in state)) return state;
+      const next = { ...state };
+      delete next[peerId];
+      return next;
+    });
+    setRemoteScreens((state) => {
       if (!(peerId in state)) return state;
       const next = { ...state };
       delete next[peerId];
@@ -157,6 +220,14 @@ export function VoiceRoom({
       for (const peerId of Array.from(peersRef.current.keys())) closePeer(peerId);
       localStreamRef.current?.getTracks().forEach((track) => track.stop());
       localStreamRef.current = null;
+      screenStreamRef.current?.getTracks().forEach((track) => {
+        track.onended = null;
+        track.stop();
+      });
+      screenStreamRef.current = null;
+      videoSendersRef.current.clear();
+      setLocalScreen(null);
+      setSharing(false);
       handledRef.current.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -169,6 +240,14 @@ export function VoiceRoom({
     peersRef.current.set(peerId, pc);
     const local = localStreamRef.current;
     local?.getTracks().forEach((track) => pc.addTrack(track, local));
+    // A video line exists from the first offer, so a screen shared midway
+    // through a call is a plain `replaceTrack` away.
+    const video = pc.addTransceiver("video", { direction: "sendrecv" });
+    videoSendersRef.current.set(peerId, video.sender);
+    const activeScreen = screenStreamRef.current?.getVideoTracks()[0];
+    if (activeScreen) {
+      void video.sender.replaceTrack(activeScreen).catch(() => undefined);
+    }
     pc.onicecandidate = (event) => {
       if (!event.candidate) return;
       void sendSignal({
@@ -181,6 +260,18 @@ export function VoiceRoom({
     };
     pc.ontrack = (event) => {
       const stream = event.streams[0] ?? new MediaStream([event.track]);
+      if (event.track.kind === "video") {
+        setRemoteScreens((state) => ({ ...state, [peerId]: stream }));
+        event.track.onended = () => {
+          setRemoteScreens((state) => {
+            if (!(peerId in state)) return state;
+            const next = { ...state };
+            delete next[peerId];
+            return next;
+          });
+        };
+        return;
+      }
       setRemoteStreams((state) => ({ ...state, [peerId]: stream }));
     };
     return pc;
@@ -269,16 +360,106 @@ export function VoiceRoom({
     );
   };
 
+  /** Start broadcasting this screen to everyone in the room. */
+  const startScreenShare = async () => {
+    if (screenStreamRef.current) return;
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      toast.error("Screen sharing isn't available on this device.");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: 30 },
+        audio: false,
+      });
+      const track = stream.getVideoTracks()[0];
+      if (!track) {
+        stream.getTracks().forEach((item) => item.stop());
+        return;
+      }
+      screenStreamRef.current = stream;
+      setLocalScreen(stream);
+      setSharing(true);
+      // The browser's own "Stop sharing" button ends the track.
+      track.onended = () => stopScreenShare();
+      await Promise.all(
+        Array.from(videoSendersRef.current.values(), (sender) =>
+          sender.replaceTrack(track).catch(() => undefined),
+        ),
+      );
+      await join({
+        containerType,
+        containerId,
+        muted,
+        deafened,
+        sharing: true,
+      }).catch(() => undefined);
+    } catch (error) {
+      const name = error instanceof DOMException ? error.name : "";
+      if (name !== "NotAllowedError" && name !== "AbortError") {
+        toast.error("Couldn't start screen sharing.");
+      }
+    }
+  };
+
+  const stopScreenShare = () => {
+    const stream = screenStreamRef.current;
+    screenStreamRef.current = null;
+    setLocalScreen(null);
+    setSharing(false);
+    stream?.getTracks().forEach((track) => {
+      track.onended = null;
+      track.stop();
+    });
+    for (const sender of videoSendersRef.current.values()) {
+      void sender.replaceTrack(null).catch(() => undefined);
+    }
+    void join({
+      containerType,
+      containerId,
+      muted,
+      deafened,
+      sharing: false,
+    }).catch(() => undefined);
+  };
+
   if (!active) return null;
 
   const peers = (roster ?? []).filter((entry) => entry.userId !== me?.id);
   const others = peers.length;
   const stateLabel =
     others > 0 ? `Voice connected · ${others + 1} in voice` : "Voice connected";
+  // Tiles for screens being shared: ours, plus every peer the roster says is
+  // broadcasting. The roster flag (not the track) decides visibility, so a
+  // dark idle video line never turns into a phantom tile.
+  const screenPeers = peers.filter((entry) => entry.sharing);
+  const hasStage = sharing || screenPeers.length > 0;
 
   return (
-    <div className="border-t border-border/60 bg-panel px-3 py-2 sm:px-6">
-      <div className="flex flex-wrap items-center gap-3">
+    <div className="border-t border-border/60 bg-panel">
+      {hasStage && (
+        <div className="border-b border-border/60 bg-black/60 px-3 py-2 sm:px-4">
+          <div className="flex flex-wrap gap-2">
+            {sharing && localScreen && (
+              <ScreenTile
+                label="Your screen"
+                stream={localScreen}
+                muted
+                highlight
+              />
+            )}
+            {screenPeers.map((entry) => (
+              <ScreenTile
+                key={entry.userId}
+                label={entry.user?.name ?? "Member"}
+                stream={remoteScreens[entry.userId] ?? null}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-3 px-3 py-2 sm:px-6">
         <span className="flex items-center gap-1.5 text-xs font-semibold text-success">
           <span className="size-2 animate-pulse rounded-full bg-success" />
           {stateLabel}
@@ -301,11 +482,36 @@ export function VoiceRoom({
                   <MicOff className="size-2.5" />
                 </span>
               )}
+              {entry.sharing && (
+                <span
+                  title="Sharing screen"
+                  className="absolute -bottom-0.5 -right-0.5 flex size-3.5 items-center justify-center rounded-full bg-primary text-white ring-2 ring-panel"
+                >
+                  <ScreenShare className="size-2.5" />
+                </span>
+              )}
             </span>
           ))}
         </div>
 
         <div className="ml-auto flex items-center gap-1">
+          <Button
+            size="sm"
+            variant={sharing ? "default" : "outline"}
+            className="h-8 px-2.5"
+            onClick={() => {
+              if (sharing) stopScreenShare();
+              else void startScreenShare();
+            }}
+            aria-label={sharing ? "Stop sharing screen" : "Share screen"}
+            title={sharing ? "Stop sharing" : "Share your screen"}
+          >
+            {sharing ? (
+              <ScreenShareOff className="size-4" />
+            ) : (
+              <ScreenShare className="size-4" />
+            )}
+          </Button>
           <Button
             size="sm"
             variant={muted ? "default" : "outline"}
@@ -532,7 +738,17 @@ export function VoiceRoster({
               {entry.muted ? "Muted" : "Voice connected"}
             </p>
           </div>
-          {entry.muted && <MicOff className="ml-auto size-4 text-destructive" />}
+          <div className="ml-auto flex items-center gap-1.5">
+            {entry.sharing && (
+              <span
+                title="Sharing their screen"
+                className="flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary"
+              >
+                <ScreenShare className="size-3" /> Sharing
+              </span>
+            )}
+            {entry.muted && <MicOff className="size-4 text-destructive" />}
+          </div>
         </div>
       ))}
     </div>

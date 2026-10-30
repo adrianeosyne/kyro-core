@@ -94,6 +94,27 @@ function InvitePage() {
               {preview.server.description}
             </p>
           )}
+
+          {preview?.valid && (
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              {preview.server.owner && (
+                <span>
+                  Owner ·{" "}
+                  <span className="font-medium text-foreground/80">
+                    {preview.server.owner.name}
+                  </span>
+                </span>
+              )}
+              <span>
+                Created ·{" "}
+                {new Date(preview.server.createdAt).toLocaleDateString([], {
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </span>
+            </div>
+          )}
         </CardContent>
 
         <CardFooter className="flex gap-2">

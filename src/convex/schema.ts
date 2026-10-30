@@ -494,6 +494,8 @@ const schema = defineSchema(
       lastSeenAt: v.number(),
       muted: v.optional(v.boolean()),
       deafened: v.optional(v.boolean()),
+      /** True while this member is broadcasting their screen into the room. */
+      sharing: v.optional(v.boolean()),
     })
       .index("by_container", ["containerType", "containerId"])
       .index("by_user", ["userId"]),

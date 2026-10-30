@@ -39,8 +39,9 @@ export const join = mutation({
     containerId: v.string(),
     muted: v.optional(v.boolean()),
     deafened: v.optional(v.boolean()),
+    sharing: v.optional(v.boolean()),
   },
-  handler: async (ctx, { containerType, containerId, muted, deafened }) => {
+  handler: async (ctx, { containerType, containerId, muted, deafened, sharing }) => {
     const { id } = await requireUser(ctx);
     const now = Date.now();
     const existing = await ctx.db
@@ -56,6 +57,7 @@ export const join = mutation({
         lastSeenAt: now,
         ...(muted !== undefined ? { muted } : {}),
         ...(deafened !== undefined ? { deafened } : {}),
+        ...(sharing !== undefined ? { sharing } : {}),
       });
       return;
     }
@@ -69,6 +71,7 @@ export const join = mutation({
       lastSeenAt: now,
       muted: muted ?? false,
       deafened: deafened ?? false,
+      sharing: sharing ?? false,
     });
   },
 });
@@ -111,6 +114,7 @@ export const roster = query({
       userId: session.userId as string,
       muted: session.muted === true,
       deafened: session.deafened === true,
+      sharing: session.sharing === true,
       joinedAt: session.joinedAt,
       user: users.get(session.userId) ?? null,
     }));

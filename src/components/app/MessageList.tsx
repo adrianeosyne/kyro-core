@@ -18,6 +18,10 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { DeviceBadge, UserAvatar } from "@/components/app/UserAvatar";
 import { ServerTagChip } from "@/components/app/ServerTag";
+import {
+  extractInviteCodes,
+  ServerInviteCard,
+} from "@/components/app/ServerInviteCard";
 import { CrownBadge } from "@/components/app/CrownBadge";
 import { InlineBadge } from "@/components/app/GlobalBadges";
 import { Button } from "@/components/ui/button";
@@ -333,6 +337,11 @@ function MessageRow({
   const deleteMessage = useMutation(api.messages.remove);
   const isAuthor = message.authorId === currentUserId;
   const author = message.author;
+  // Any invite link pasted into chat gets a community preview underneath it.
+  const inviteCodes = useMemo(
+    () => extractInviteCodes(message.content),
+    [message.content],
+  );
 
   /** Opening a profile uses the same ?user=<id> parameter as everywhere else. */
   const openProfile = () => {
@@ -499,6 +508,14 @@ function MessageRow({
               {message.editedAt && (
                 <span className="ml-1.5 text-[10px] text-muted-foreground">(edited)</span>
               )}
+            </div>
+          )}
+
+          {inviteCodes.length > 0 && !editing && (
+            <div className="mt-2 flex flex-col gap-2">
+              {inviteCodes.slice(0, 2).map((code) => (
+                <ServerInviteCard key={code} code={code} />
+              ))}
             </div>
           )}
 

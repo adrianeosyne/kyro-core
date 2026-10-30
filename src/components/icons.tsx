@@ -468,6 +468,26 @@ export const Monitor = (props: IconProps) => (
   </Icon>
 );
 
+export const ScreenShare = (props: IconProps) => (
+  <Icon {...props}>
+    <rect x="2.5" y="4.5" width="19" height="12.5" rx="3" />
+    <path d="M12 17v3.5" />
+    <path d="M8.5 20.5h7" />
+    <path d="M12 13.5V7.7" />
+    <path d="m9.6 10 2.4-2.4 2.4 2.4" />
+  </Icon>
+);
+
+export const ScreenShareOff = (props: IconProps) => (
+  <Icon {...props}>
+    <rect x="2.5" y="4.5" width="19" height="12.5" rx="3" />
+    <path d="M12 17v3.5" />
+    <path d="M8.5 20.5h7" />
+    <path d="M9 12.4 12 7.6l3 4.8" />
+    <path d="M3.2 3.2 20.8 20.8" />
+  </Icon>
+);
+
 export const MonitorSmartphone = (props: IconProps) => (
   <Icon {...props}>
     <rect x="2.5" y="4.5" width="13" height="9.5" rx="2.5" />
