@@ -449,6 +449,21 @@ const schema = defineSchema(
       .index("by_user", ["userId"])
       .index("by_user_expiry", ["userId", "expiresAt"]),
 
+    /**
+     * One-shot codes for "forgot password": requested from the auth screen,
+     * delivered by email, single use, and burned after too many wrong tries.
+     */
+    passwordResetCodes: defineTable({
+      /** Lowercased address the code was mailed to. */
+      email: v.string(),
+      code: v.string(),
+      attempts: v.number(),
+      expiresAt: v.number(),
+      createdAt: v.number(),
+    })
+      .index("by_email", ["email"])
+      .index("by_expiry", ["expiresAt"]),
+
     /** Bug reports filed from Settings → My Account → Bug hunting. */
     bugReports: defineTable({
       reporterId: v.id("users"),

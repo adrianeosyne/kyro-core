@@ -40,7 +40,7 @@ function resolveRedirectAfterAuth(
   return fallback;
 }
 
-type Step = "signIn" | "register";
+type Step = "signIn" | "register" | "forgot" | "reset";
 
 function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
   const { isLoading: authLoading, isAuthenticated, signIn } = useAuth();
@@ -53,6 +53,8 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
 
   // `users/createAccount.ts` nests one level deeper in the generated API.
   const createAccountAction = useAction(api.users.createAccount.createAccount);
+  const requestCodeAction = useAction(api.passwordReset.requestCode);
+  const resetPasswordAction = useAction(api.passwordReset.resetPassword);
   const [step, setStep] = React.useState<Step>("signIn");
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
@@ -65,6 +67,11 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
     boolean | null
   >(null);
   const [showPassword, setShowPassword] = React.useState(false);
+  // Forgot-password flow: email → emailed code → new password.
+  const [resetCode, setResetCode] = React.useState("");
+  const [newPassword, setNewPassword] = React.useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = React.useState("");
+  const [showNewPassword, setShowNewPassword] = React.useState(false);
   const id = useId();
 
   React.useEffect(() => {
@@ -168,6 +175,96 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
   const startSignIn = () => {
     setStep("signIn");
     setError(null);
+  };
+
+  const startForgotPassword = () => {
+    setStep("forgot");
+    setError(null);
+  };
+
+  /** Step 1 of recovery: ask for a code, then move to the code screen. */
+  const sendResetCode = async () => {
+    setIsLoading(true);
+    setError(null);
+    const target = email.trim().toLowerCase();
+    try {
+      const result = await requestCodeAction({ email: target });
+      if (result.throttled) {
+        setError(
+          "Too many codes requested for this email — wait a minute, then try again.",
+        );
+        return;
+      }
+      setResetCode("");
+      setNewPassword("");
+      setConfirmNewPassword("");
+      setStep("reset");
+      toast.success(
+        result.sent
+          ? "Code sent — check your inbox."
+          : "If that email has a Kyro account, a code is on its way.",
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Couldn't send the code.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRequestCode = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault();
+    await sendResetCode();
+  };
+
+  /** Step 2 of recovery: code + new password. Signs in on success. */
+  const handleResetPassword = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault();
+    setIsLoading(true);
+    setError(null);
+    if (newPassword.length < 8) {
+      setError("Password must be at least 8 characters.");
+      setIsLoading(false);
+      return;
+    }
+    if (confirmNewPassword !== newPassword) {
+      setError("Passwords do not match.");
+      setIsLoading(false);
+      return;
+    }
+    try {
+      await resetPasswordAction({
+        email: email.trim().toLowerCase(),
+        code: resetCode,
+        newPassword,
+      });
+      toast.success("Password updated — you're back in.");
+      try {
+        await signIn("password", {
+          flow: "signIn",
+          email: email.trim().toLowerCase(),
+          password: newPassword,
+        });
+        navigate(redirect);
+        return;
+      } catch {
+        // Sessions were invalidated by the reset; fall back to the form.
+        setStep("signIn");
+        setPassword("");
+        setError("Password changed — sign in with your new password.");
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Couldn't reset the password.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -285,6 +382,17 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
                         )}
                       </button>
                     </div>
+                  </div>
+
+                  <div className="flex items-center justify-end">
+                    <button
+                      type="button"
+                      onClick={startForgotPassword}
+                      disabled={isLoading}
+                      className="text-xs font-medium text-primary hover:underline"
+                    >
+                      Forgot password?
+                    </button>
                   </div>
 
                   {error && <p className="text-sm text-red-500">{error}</p>}
@@ -438,12 +546,176 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <Check className="h-4 w-4" />
-                    )}
-                    Create account
+                    )}                  Create account
+                </Button>
+              </div>
+            </form>
+            </>
+          ) : step === "forgot" ? (
+            <form onSubmit={handleRequestCode} className="space-y-4">
+              <CardHeader className="text-center -mt-6">
+                <CardTitle className="text-xl">Reset your password</CardTitle>
+                <CardDescription>
+                  Enter the email on your Kyro account and we'll send you a
+                  6-digit code.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="forgot-email">Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="forgot-email"
+                      name="email"
+                      type="email"
+                      placeholder="name@example.com"
+                      className="pl-9"
+                      disabled={isLoading}
+                      required
+                      autoComplete="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                  </div>
+                </div>
+                {error && <p className="text-sm text-red-500">{error}</p>}
+              </CardContent>
+              <div className="flex items-center justify-between gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={startSignIn}
+                  disabled={isLoading}
+                >
+                  Back to sign-in
+                </Button>
+                <Button type="submit" disabled={isLoading}>
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Mail className="h-4 w-4" />
+                  )}
+                  Send code
+                </Button>
+              </div>
+            </form>
+          ) : step === "reset" ? (
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <CardHeader className="text-center -mt-6">
+                <CardTitle className="text-xl">Enter your code</CardTitle>
+                <CardDescription>
+                  We sent a 6-digit code to{" "}
+                  <span className="font-medium text-foreground">{email}</span>.
+                  It expires in 10 minutes.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="reset-code">6-digit code</Label>
+                  <Input
+                    id="reset-code"
+                    name="code"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    placeholder="123456"
+                    className="text-center text-lg font-semibold tracking-[0.4em]"
+                    disabled={isLoading}
+                    required
+                    value={resetCode}
+                    onChange={(e) =>
+                      setResetCode(
+                        e.target.value.replace(/\D/g, "").slice(0, 6),
+                      )
+                    }
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="reset-password">New password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="reset-password"
+                      type={showNewPassword ? "text" : "password"}
+                      placeholder="Min. 8 characters"
+                      className="pl-9 pr-9"
+                      disabled={isLoading}
+                      required
+                      autoComplete="new-password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword((v) => !v)}
+                      className="absolute inset-y-0 right-0 z-10 flex w-9 items-center justify-center rounded-r-md text-muted-foreground transition-colors hover:text-foreground"
+                      aria-label={
+                        showNewPassword ? "Hide password" : "Show password"
+                      }
+                      aria-pressed={showNewPassword}
+                    >
+                      {showNewPassword ? (
+                        <EyeOff className="size-4" />
+                      ) : (
+                        <Eye className="size-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="reset-confirm">Confirm new password</Label>
+                  <Input
+                    id="reset-confirm"
+                    type={showNewPassword ? "text" : "password"}
+                    placeholder="Re-enter password"
+                    disabled={isLoading}
+                    required
+                    autoComplete="new-password"
+                    value={confirmNewPassword}
+                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                  />
+                </div>
+
+                {error && <p className="text-sm text-red-500">{error}</p>}
+              </CardContent>
+              <div className="space-y-3">
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={isLoading || resetCode.length !== 6}
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Check className="h-4 w-4" />
+                  )}
+                  Reset password
+                </Button>
+                <div className="flex items-center justify-between gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={startForgotPassword}
+                    disabled={isLoading}
+                  >
+                    Use a different email
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void sendResetCode()}
+                    disabled={isLoading}
+                  >
+                    Resend code
                   </Button>
                 </div>
-              </form>
-            </>
+              </div>
+            </form>
           ) : null}
         </Card>
       </main>
