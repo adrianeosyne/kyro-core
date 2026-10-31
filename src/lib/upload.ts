@@ -40,10 +40,31 @@ export function useUploadFile() {
         throw new Error(`Upload failed (${response.status}). Try again.`);
       }
       const { storageId } = (await response.json()) as { storageId: string };
-      return await registerUpload({
+      const attachment: PendingAttachment = {
         storageId: storageId as Id<"_storage">,
         name: file.name,
-      });
+        size: file.size,
+        mimeType: file.type || "application/octet-stream",
+      };
+
+      try {
+        return await registerUpload({
+          storageId: attachment.storageId,
+          name: file.name,
+        });
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : String(error);
+        const backendPredatesRegistration =
+          message.includes("Could not find public function") &&
+          message.toLowerCase().includes("registerupload");
+        if (!backendPredatesRegistration) throw error;
+
+        // The object is already in Convex storage. Older deployments predate
+        // upload ownership tracking, so they accept the storage id directly —
+        // return the local metadata instead of failing the whole upload.
+        return attachment;
+      }
     },
     [generateUploadUrl, registerUpload],
   );
