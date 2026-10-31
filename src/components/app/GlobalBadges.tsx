@@ -1,5 +1,38 @@
 import { CrownBadge } from "@/components/app/CrownBadge";
 import { cn } from "@/lib/utils";
+import type { ReactNode } from "react";
+
+/**
+ * Hover/focus tooltip explaining a badge — a small dark panel above the
+ * icon with the badge's name and blurb, styled like the profile popup's
+ * badge tips. Pure CSS: no portal, no delay.
+ */
+export function BadgeTip({
+  label,
+  blurb,
+  children,
+}: {
+  label: string;
+  blurb?: string;
+  children: ReactNode;
+}) {
+  return (
+    <span className="group/tip relative inline-flex shrink-0 items-center align-middle">
+      {children}
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-2 w-max max-w-44 -translate-x-1/2 scale-95 rounded-lg bg-zinc-900 px-3.5 py-2 text-center opacity-0 shadow-[0_10px_30px_rgba(0,0,0,0.45)] ring-1 ring-white/10 transition-all duration-150 group-hover/tip:scale-100 group-hover/tip:opacity-100 group-focus-within/tip:scale-100 group-focus-within/tip:opacity-100"
+      >
+        <span className="block text-sm font-bold text-zinc-50">{label}</span>
+        {blurb ? (
+          <span className="mt-0.5 block text-xs font-medium leading-snug text-zinc-300">
+            {blurb}
+          </span>
+        ) : null}
+      </span>
+    </span>
+  );
+}
 
 /**
  * Kyro's platform-wide (global) badges — shown in their own dedicated
@@ -151,15 +184,14 @@ export function InlineBadge({
   if (chosen === "founder") {
     return <CrownBadge variant="founder" label="Kyro founder" size={size} />;
   }
-  const label = GLOBAL_BADGE_META[chosen].label;
+  const meta = GLOBAL_BADGE_META[chosen];
   return (
-    <span
-      title={label}
-      className="inline-flex shrink-0 items-center align-middle"
-    >
-      <GlobalBadgeIcon badge={chosen} className={size} />
-      <span className="sr-only">{label}</span>
-    </span>
+    <BadgeTip label={meta.label} blurb={meta.blurb}>
+      <span className="inline-flex shrink-0 items-center align-middle">
+        <GlobalBadgeIcon badge={chosen} className={size} />
+        <span className="sr-only">{meta.label}</span>
+      </span>
+    </BadgeTip>
   );
 }
 
@@ -478,18 +510,19 @@ export function GlobalBadgeChip({
 }) {
   const meta = GLOBAL_BADGE_META[badge];
   return (
-    <span
-      title={meta.blurb}
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-wide",
-        "shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition-shadow hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_2px_6px_rgba(0,0,0,0.12)]",
-        meta.chip,
-        className,
-      )}
-    >
-      <GlobalBadgeIcon badge={badge} />
-      {meta.label}
-    </span>
+    <BadgeTip label={meta.label} blurb={meta.blurb}>
+      <span
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-wide",
+          "shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition-shadow hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_2px_6px_rgba(0,0,0,0.12)]",
+          meta.chip,
+          className,
+        )}
+      >
+        <GlobalBadgeIcon badge={badge} />
+        {meta.label}
+      </span>
+    </BadgeTip>
   );
 }
 

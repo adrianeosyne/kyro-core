@@ -10,6 +10,7 @@ import {
   Download,
   Eye,
   EyeOff,
+  Link2,
   Loader2,
   LogOut,
   Monitor,
@@ -22,7 +23,7 @@ import {
   User as UserIcon,
   X,
 } from "@/components/icons";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -59,6 +60,7 @@ import {
   GLOBAL_BADGE_META,
   GlobalBadgeIcon,
   GlobalBadges,
+  InlineBadge,
 } from "@/components/app/GlobalBadges";
 import { Slider } from "@/components/ui/slider";
 import { MAX_UPLOAD_BYTES, useUploadFile } from "@/lib/upload";
@@ -76,8 +78,8 @@ type TabId =
   | "data";
 
 const TABS: { id: TabId; label: string; icon: typeof UserIcon }[] = [
-  { id: "account", label: "My account", icon: UserIcon },
-  { id: "profile", label: "Profile", icon: Palette },
+  { id: "account", label: "My Account", icon: UserIcon },
+  { id: "profile", label: "My Profile", icon: Palette },
   { id: "appearance", label: "Appearance", icon: Monitor },
   { id: "privacy", label: "Privacy & safety", icon: ShieldCheck },
   { id: "security", label: "Sessions", icon: ShieldCheck },
@@ -116,13 +118,6 @@ export function SettingsDialog({
     (TABS.find((entry) => entry.id === initialTab)?.id as TabId) ?? "account",
   );
 
-  const groups: { heading: string; ids: TabId[] }[] = [
-    { heading: "Account", ids: ["account", "profile"] },
-    { heading: "App", ids: ["appearance"] },
-    { heading: "Safety", ids: ["privacy", "security"] },
-    { heading: "Advanced", ids: ["data"] },
-  ];
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex h-[92vh] w-[calc(100vw-1.5rem)] max-w-6xl flex-col gap-0 overflow-hidden p-0 sm:h-[88vh]"
@@ -131,12 +126,9 @@ export function SettingsDialog({
           <nav className="shrink-0 gap-1.5 border-b border-border/60 bg-panel/40 p-4 sm:w-72 sm:border-b-0 sm:border-r">
             <DialogHeader className="mb-4 flex flex-row items-start justify-between px-2 text-left">
               <div>
-                <DialogTitle className="text-lg">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/70">
                   User settings
-                  <span className="ml-2 rounded-full bg-brand/10 px-1.5 py-0.5 align-middle text-[10px] font-semibold uppercase tracking-wider text-brand">
-                    Kyro
-                  </span>
-                </DialogTitle>
+                </p>
                 <DialogDescription className="sr-only">
                   Account, appearance and privacy preferences.
                 </DialogDescription>
@@ -153,45 +145,31 @@ export function SettingsDialog({
             </DialogHeader>
             {/* Horizontal chip scroller on mobile; grouped sections on desktop. */}
             <div className="flex gap-1.5 overflow-x-auto pb-1 sm:flex-col sm:overflow-visible sm:pb-0">
-              {groups.map((group) => (
-                <div key={group.heading} className="sm:mb-2 sm:contents sm:last:mb-0">
-                  {/* Section label is only meaningful in the stacked (desktop)
-                      layout; on mobile every chip is self-describing. */}
-                  <p className="hidden px-3 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70 sm:block sm:first-of-type:mt-0">
-                    {group.heading}
-                  </p>
-                  <div className="flex gap-1.5 sm:flex-col">
-                    {group.ids.map((id) => {
-                      const entry = TABS.find((t) => t.id === id);
-                      if (!entry) return null;
-                      return (
-                        <button
-                          key={id}
-                          type="button"
-                          onClick={() => setTab(id)}
-                          className={cn(
-                            "relative flex shrink-0 items-center gap-2.5 overflow-hidden rounded-lg px-3 py-2.5 text-left text-sm transition-all duration-150",
-                            tab === id
-                              ? "bg-surface font-medium text-foreground shadow-sm ring-1 ring-border/70"
-                              : "text-muted-foreground hover:bg-surface/60 hover:text-foreground",
-                          )}
-                        >
-                          {tab === id && (
-                            <span
-                              aria-hidden
-                              className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-brand"
-                            />
-                          )}
-                          <entry.icon className="size-4" />
-                          {entry.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
+              <div className="flex gap-1.5 sm:flex-col">
+                {TABS.slice(0, 2).map((entry) => (
+                  <SettingsNavItem
+                    key={entry.id}
+                    entry={entry}
+                    active={tab === entry.id}
+                    onClick={() => setTab(entry.id)}
+                  />
+                ))}
+              </div>
+              <p className="hidden shrink-0 px-3 pt-5 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/50 sm:block">
+                App settings
+              </p>
+              <div className="flex gap-1.5 sm:flex-col">
+                {TABS.slice(2).map((entry) => (
+                  <SettingsNavItem
+                    key={entry.id}
+                    entry={entry}
+                    active={tab === entry.id}
+                    onClick={() => setTab(entry.id)}
+                  />
+                ))}
+              </div>
             </div>
-            <p className="hidden px-3 pt-6 text-[11px] leading-relaxed text-muted-foreground/60 sm:block">
+            <p className="hidden px-3 pt-8 text-[11px] leading-relaxed text-muted-foreground/60 sm:block">
               Tip: everything here only affects your account — no one else can
               change it.
             </p>
@@ -210,6 +188,39 @@ export function SettingsDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** One sidebar entry: icon + label, accent bar while active. */
+function SettingsNavItem({
+  entry,
+  active,
+  onClick,
+}: {
+  entry: { id: TabId; label: string; icon: typeof UserIcon };
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "relative flex shrink-0 items-center gap-2.5 overflow-hidden rounded-lg px-3 py-2.5 text-left text-sm transition-all duration-150",
+        active
+          ? "bg-surface font-medium text-foreground shadow-sm ring-1 ring-border/70"
+          : "text-muted-foreground hover:bg-surface/60 hover:text-foreground",
+      )}
+    >
+      {active && (
+        <span
+          aria-hidden
+          className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-brand"
+        />
+      )}
+      <entry.icon className="size-4" />
+      {entry.label}
+    </button>
   );
 }
 
@@ -1367,18 +1378,32 @@ function ProfileTab() {
   };
 
   return (
-    <>
-      <Section title="Avatar">
-        <div className="flex flex-wrap items-center gap-4">
-          <UserAvatar user={me} size="xl" />
-          <div className="flex flex-wrap gap-2">
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-border/70 bg-surface px-3 py-2 text-sm hover:bg-surface/70">
-              {uploading ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <UserIcon className="size-4" />
-              )}
-              Upload image
+    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="grid min-w-0 gap-6">
+      <ProfilePromoCard />
+
+      <section>
+        <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/70">
+          Look
+        </p>
+        <div className="overflow-hidden rounded-xl border border-border/70 bg-surface divide-y divide-border/60">
+          <div className="p-4 sm:p-5">
+            <FieldRow label="Profile picture">
+              <div className="mt-3 flex flex-wrap items-center gap-4">
+                <UserAvatar user={me} size="lg" />
+                <div className="flex flex-wrap gap-2">
+                  <label
+                    className={cn(
+                      "inline-flex cursor-pointer items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90",
+                      uploading && "pointer-events-none opacity-70",
+                    )}
+                  >
+                    {uploading ? (
+                      <Loader2 className="mr-1.5 size-4 animate-spin" />
+                    ) : (
+                      <UserIcon className="mr-1.5 size-4" />
+                    )}
+                    Upload picture
               <input
                 type="file"
                 accept="image/*"
@@ -1403,39 +1428,50 @@ function ProfileTab() {
                     setUploading(false);
                   }
                 }}
-              />
-            </label>
-            {me.avatarUrl && (
-              <Button
-                variant="outline"
-                onClick={() => void update({ avatarStorageId: null })}
-              >
-                Remove
-              </Button>
-            )}
+                      />
+                    </label>
+                  {me.avatarUrl && (
+                    <button
+                      type="button"
+                      className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                      onClick={() => void update({ avatarStorageId: null })}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              </div>
+            </FieldRow>
+            <p className="mt-3 text-xs text-muted-foreground">
+              JPEG, PNG, or GIF — animated avatars play everywhere in Kyro.
+            </p>
           </div>
-        </div>
-      </Section>
 
-      <Section title="Banner">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="h-20 w-56 overflow-hidden rounded-lg border border-border/70 bg-gradient-to-br from-brand to-cyan">
-            {me.bannerUrl && (
-              <img
-                src={me.bannerUrl}
-                alt="Your profile banner"
-                className="size-full object-cover"
-              />
-            )}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-border/70 bg-surface px-3 py-2 text-sm hover:bg-surface/70">
-              {uploadingBanner ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Palette className="size-4" />
-              )}
-              Upload banner
+          <div className="p-4 sm:p-5">
+            <FieldRow label="Banner">
+              <div className="mt-3 flex flex-wrap items-center gap-4">
+                <div className="h-16 w-44 overflow-hidden rounded-lg border border-border/70 bg-gradient-to-br from-brand/80 to-cyan/80">
+                  {me.bannerUrl && (
+                    <img
+                      src={me.bannerUrl}
+                      alt="Your profile banner"
+                      className="size-full object-cover"
+                    />
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <label
+                    className={cn(
+                      "inline-flex cursor-pointer items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90",
+                      uploadingBanner && "pointer-events-none opacity-70",
+                    )}
+                  >
+                    {uploadingBanner ? (
+                      <Loader2 className="mr-1.5 size-4 animate-spin" />
+                    ) : (
+                      <Palette className="mr-1.5 size-4" />
+                    )}
+                    Upload banner
               <input
                 type="file"
                 accept="image/*"
@@ -1460,28 +1496,37 @@ function ProfileTab() {
                     setUploadingBanner(false);
                   }
                 }}
-              />
-            </label>
-            {me.bannerUrl && (
-              <Button
-                variant="outline"
-                onClick={() => void update({ bannerStorageId: null })}
-              >
-                Remove
-              </Button>
-            )}
+                      />
+                    </label>
+                  {me.bannerUrl && (
+                    <button
+                      type="button"
+                      className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                      onClick={() => void update({ bannerStorageId: null })}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              </div>
+            </FieldRow>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Images and GIFs both work — animated banners play on your
+              profile.
+            </p>
           </div>
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">
-          Images and GIFs both work — animated banners play on your profile.
-        </p>
-      </Section>
+      </section>
 
-      <Section
-        title="Community tag"
-        description="Wear one of your communities' tags next to your name everywhere on Kyro."
-      >
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+      <section>
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/70">
+          Server tag
+        </p>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Wear one of your communities' tags next to your name everywhere on
+          Kyro.
+        </p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <button
             type="button"
             onClick={() => {
@@ -1498,16 +1543,21 @@ function ProfileTab() {
               });
             }}
             className={cn(
-              "flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-xs transition-colors",
+              "relative flex flex-col items-center gap-2 rounded-xl border bg-surface p-3 text-xs transition-colors",
               (wornTagSel === undefined ? me.serverTag : wornTagSel) === null
-                ? "border-primary bg-primary/10 text-foreground"
+                ? "border-primary ring-1 ring-primary/40 text-foreground"
                 : "border-border/70 text-muted-foreground hover:text-foreground",
             )}
           >
-            <span className="flex h-8 items-center justify-center rounded border border-dashed border-border px-3">
+            {(wornTagSel === undefined ? me.serverTag : wornTagSel) === null && (
+              <span className="absolute right-2.5 top-2.5 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                ✓
+              </span>
+            )}
+            <span className="flex h-9 min-w-12 items-center justify-center rounded-lg border border-dashed border-border px-3 font-bold uppercase tracking-wider">
               —
             </span>
-            None
+            <span className="w-full truncate text-center">None</span>
           </button>
           {(myServers ?? [])
             .filter((entry) => entry.tag)
@@ -1531,13 +1581,18 @@ function ProfileTab() {
                     });
                   }}
                   className={cn(
-                    "flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-xs transition-colors",
+                    "relative flex flex-col items-center gap-2 rounded-xl border bg-surface p-3 text-xs transition-colors",
                     active
-                      ? "border-primary bg-primary/10 text-foreground"
+                      ? "border-primary ring-1 ring-primary/40 text-foreground"
                       : "border-border/70 text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  <span className="flex h-8 items-center rounded border border-border bg-panel px-2 text-xs font-bold uppercase tracking-wider">
+                  {active && (
+                    <span className="absolute right-2.5 top-2.5 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                      ✓
+                    </span>
+                  )}
+                  <span className="flex h-9 min-w-12 items-center justify-center rounded-lg border border-border bg-panel px-3 text-xs font-bold uppercase tracking-wider">
                     {entry.tag}
                   </span>
                   <span className="w-full truncate text-center">
@@ -1553,12 +1608,86 @@ function ProfileTab() {
             </p>
           )}
         </div>
-      </Section>
+      </section>
 
-      <Section
-        title="Badge"
-        description="This one shows next to your name in chat and the member list. Your profile card shows all of them. None hides them everywhere."
-      >
+      <section>
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/70">
+          Identity
+        </p>
+        <div className="rounded-xl border border-border/70 bg-surface divide-y divide-border/60">
+          <div className="grid gap-2 p-4 sm:p-5">
+            <Label htmlFor="profile-username">Username</Label>
+            <Input
+              id="profile-username"
+              value={usernameDraft ?? me.username ?? ""}
+              onChange={(event) =>
+                setUsernameDraft(event.target.value.toLowerCase())
+              }
+              maxLength={32}
+            />
+            <p className="text-xs text-muted-foreground">
+              You can change your username once every hour.
+            </p>
+          </div>
+          <div className="grid gap-2 p-4 sm:p-5">
+            <Label htmlFor="profile-name">Display name</Label>
+            <Input
+              id="profile-name"
+              value={name ?? me.name}
+              onChange={(event) => setName(event.target.value)}
+              maxLength={64}
+            />
+          </div>
+          <div className="grid gap-2 p-4 sm:p-5">
+            <Label htmlFor="profile-pronouns">Pronouns</Label>
+            <Input
+              id="profile-pronouns"
+              value={pronouns ?? me.pronouns ?? ""}
+              onChange={(event) => setPronouns(event.target.value)}
+              placeholder="He/Him"
+              maxLength={32}
+            />
+          </div>
+          <div className="grid gap-2 p-4 sm:p-5">
+            <Label htmlFor="profile-status">Custom status</Label>
+            <Input
+              id="profile-status"
+              value={status ?? me.customStatus ?? ""}
+              onChange={(event) => setStatus(event.target.value)}
+              placeholder="Grinding ranked"
+              maxLength={100}
+            />
+          </div>
+          <div className="grid gap-2 p-4 sm:p-5">
+            <Label htmlFor="profile-bio">About me</Label>
+            <Textarea
+              id="profile-bio"
+              rows={3}
+              value={bio ?? me.bio ?? ""}
+              onChange={(event) => setBio(event.target.value)}
+              maxLength={400}
+            />
+            <p className="text-right text-xs text-muted-foreground">
+              {400 - (bio ?? me.bio ?? "").length} left
+            </p>
+          </div>
+          <div className="p-4 sm:p-5">
+            <Button onClick={save} disabled={busy}>
+              {busy && <Loader2 className="mr-2 size-4 animate-spin" />}
+              Save profile
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/70">
+          Badge
+        </p>
+        <p className="mb-3 text-xs text-muted-foreground">
+          This one shows next to your name in chat and the member list. Your
+          profile card shows all of them. None hides them everywhere.
+        </p>
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
           {me.badges.map((badge) => {
             const active =
@@ -1583,7 +1712,7 @@ function ProfileTab() {
                 className={cn(
                   "relative flex flex-col items-center gap-1.5 rounded-lg border p-3 text-xs transition-colors",
                   active
-                    ? "border-ring/60 bg-primary/10 text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+                    ? "border-primary ring-1 ring-primary/40 bg-primary/10 text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
                     : "border-border/70 bg-surface/40 text-muted-foreground hover:text-foreground",
                 )}
               >
@@ -1619,7 +1748,7 @@ function ProfileTab() {
                 className={cn(
                   "relative flex flex-col items-center justify-center gap-1.5 rounded-lg border p-3 text-xs transition-colors",
                   active
-                    ? "border-ring/60 bg-primary/10 text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+                    ? "border-primary ring-1 ring-primary/40 bg-primary/10 text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
                     : "border-border/70 bg-surface/40 text-muted-foreground hover:text-foreground",
                 )}
               >
@@ -1636,12 +1765,15 @@ function ProfileTab() {
             );
           })()}
         </div>
-      </Section>
+      </section>
 
-      <Section
-        title="Profile theme"
-        description="Colours your profile card and its banner when you have no picture."
-      >
+      <section>
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/70">
+          Profile theme
+        </p>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Colours your profile card and its banner when you have no picture.
+        </p>
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
           <button
             type="button"
@@ -1661,7 +1793,7 @@ function ProfileTab() {
             className={cn(
               "flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-xs transition-colors",
               (themeSel === undefined ? me.profileTheme : themeSel) === null
-                ? "border-primary bg-primary/10 text-foreground"
+                ? "border-primary ring-1 ring-primary/40 text-foreground"
                 : "border-border/70 text-muted-foreground hover:text-foreground",
             )}
           >
@@ -1691,7 +1823,7 @@ function ProfileTab() {
                 className={cn(
                   "flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-xs transition-colors",
                   active
-                    ? "border-primary bg-primary/10 text-foreground"
+                    ? "border-primary ring-1 ring-primary/40 text-foreground"
                     : "border-border/70 text-muted-foreground hover:text-foreground",
                 )}
               >
@@ -1706,79 +1838,16 @@ function ProfileTab() {
             );
           })}
         </div>
-      </Section>
+      </section>
 
-      <Section title="Identity">
-        <div className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="profile-username">Username</Label>
-            <Input
-              id="profile-username"
-              value={usernameDraft ?? me.username ?? ""}
-              onChange={(event) =>
-                setUsernameDraft(event.target.value.toLowerCase())
-              }
-              maxLength={32}
-            />
-            <p className="text-xs text-muted-foreground">
-              You can change your username once every hour.
-            </p>
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="profile-name">Display name</Label>
-            <Input
-              id="profile-name"
-              value={name ?? me.name}
-              onChange={(event) => setName(event.target.value)}
-              maxLength={64}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="profile-pronouns">Pronouns</Label>
-            <Input
-              id="profile-pronouns"
-              value={pronouns ?? me.pronouns ?? ""}
-              onChange={(event) => setPronouns(event.target.value)}
-              placeholder="He/Him"
-              maxLength={32}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="profile-status">Custom status</Label>
-            <Input
-              id="profile-status"
-              value={status ?? me.customStatus ?? ""}
-              onChange={(event) => setStatus(event.target.value)}
-              placeholder="Grinding ranked"
-              maxLength={100}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="profile-bio">About me</Label>
-            <Textarea
-              id="profile-bio"
-              rows={3}
-              value={bio ?? me.bio ?? ""}
-              onChange={(event) => setBio(event.target.value)}
-              maxLength={400}
-            />
-            <p className="text-right text-xs text-muted-foreground">
-              {400 - (bio ?? me.bio ?? "").length} left
-            </p>
-          </div>
-          <div>
-            <Button onClick={save} disabled={busy}>
-              {busy && <Loader2 className="mr-2 size-4 animate-spin" />}
-              Save profile
-            </Button>
-          </div>
-        </div>
-      </Section>
-
-      <Section
-        title="Avatar frame"
-        description="Give your profile a fresh look — a frame around your picture. Built-in ones are free."
-      >
+      <section id="frames" className="scroll-mt-8">
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/70">
+          Avatar frame
+        </p>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Give your profile a fresh look — a frame around your picture.
+          Built-in ones are free.
+        </p>
         <div className="flex flex-wrap items-start gap-6">
           <div className="flex flex-col items-center gap-2">
             <UserAvatar
@@ -1808,7 +1877,7 @@ function ProfileTab() {
               className={cn(
                 "flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-xs transition-colors",
                 (frameSel === undefined ? me.avatarFrame : frameSel) === null
-                  ? "border-primary bg-primary/10 text-foreground"
+                  ? "border-primary ring-1 ring-primary/40 text-foreground"
                   : "border-border/70 text-muted-foreground hover:text-foreground",
               )}
             >
@@ -1833,7 +1902,7 @@ function ProfileTab() {
                   className={cn(
                     "flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-xs transition-colors",
                     active
-                      ? "border-primary bg-primary/10 text-foreground"
+                      ? "border-primary ring-1 ring-primary/40 text-foreground"
                       : "border-border/70 text-muted-foreground hover:text-foreground",
                   )}
                 >
@@ -1853,12 +1922,16 @@ function ProfileTab() {
             })}
           </div>
         </div>
-      </Section>
+      </section>
 
-      <Section
-        title="Links"
-        description="Shown on your profile — up to 6. Think YouTube, portfolio, a site you run."
-      >
+      <section>
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/70">
+          Links
+        </p>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Shown on your profile — up to 6. Think YouTube, portfolio, a site
+          you run.
+        </p>
         <div className="space-y-2">
           {(links ?? me.links).map((link, index) => (
             <div key={index} className="flex gap-2">
@@ -1941,8 +2014,234 @@ function ProfileTab() {
             </Button>
           </div>
         </div>
-      </Section>
-    </>
+      </section>
+      </div>
+
+      <ProfilePreviewPane
+        me={me}
+        name={name}
+        bio={bio}
+        pronouns={pronouns}
+        status={status}
+        links={links}
+        wornTag={wornTagSel}
+        primaryBadge={badgeSel}
+        theme={themeSel}
+        frame={frameSel}
+      />
+    </div>
+  );
+}
+
+/** Caps micro-label above a settings field, mirroring the reference look. */
+function FieldRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/70">
+        {label}
+      </p>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Small upsell above the looks editor — shows off avatar frames and jumps
+ * straight to the frame picker (Browse scrolls to the `#frames` anchor).
+ */
+function ProfilePromoCard() {
+  return (
+    <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border/70 bg-surface p-4 sm:p-5">
+      <div className="-space-x-2 flex shrink-0 items-center">
+        {AVATAR_FRAMES.slice(0, 3).map((frame) => (
+          <span
+            key={frame.id}
+            className={cn(
+              "size-10 rounded-full bg-gradient-to-br p-[3px] ring-2 ring-surface",
+              frame.gradient,
+            )}
+          >
+            <span className="flex size-full items-center justify-center rounded-full bg-panel text-[10px] font-semibold">
+              {frame.label.slice(0, 2)}
+            </span>
+          </span>
+        ))}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold">Give your profile a fresh look</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          A frame around your picture: built-in ones are free, or pick one
+          made by artists.
+        </p>
+      </div>
+      <Button
+        size="sm"
+        className="shrink-0 font-semibold"
+        onClick={() =>
+          document
+            .getElementById("frames")
+            ?.scrollIntoView({ behavior: "smooth", block: "start" })
+        }
+      >
+        Browse
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * Live "what others see" panel for the My Profile editor. It renders the
+ * current drafts (before saving), so the preview tracks every keystroke.
+ * Nothing inside is interactive — it is a mirror, not a control.
+ */
+function ProfilePreviewPane({
+  me,
+  name,
+  bio,
+  pronouns,
+  status,
+  links,
+  wornTag,
+  primaryBadge,
+  theme,
+  frame,
+}: {
+  me: LiveMe;
+  name: string | null;
+  bio: string | null;
+  pronouns: string | null;
+  status: string | null;
+  links: ProfileLink[] | null;
+  wornTag: string | null | undefined;
+  primaryBadge: string | null | undefined;
+  theme: string | null | undefined;
+  frame: string | null | undefined;
+}) {
+  const nameValue = name ?? me.name;
+  const bioValue = bio ?? me.bio ?? "";
+  const pronounsValue = pronouns ?? me.pronouns ?? "";
+  const statusValue = status ?? me.customStatus ?? "";
+  const themeId = theme === undefined ? (me.profileTheme ?? null) : theme;
+  const themeEntry = themeId
+    ? PROFILE_THEMES.find((entry) => entry.id === themeId)
+    : undefined;
+  const frameValue = frame === undefined ? (me.avatarFrame ?? null) : frame;
+  const tagValue = wornTag === undefined ? (me.serverTag ?? null) : wornTag;
+  const badgeId =
+    primaryBadge === undefined
+      ? (me.primaryBadge ?? me.badges[0] ?? "none")
+      : primaryBadge;
+  const linkRows = links ?? me.links;
+
+  return (
+    <div>
+      <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/70">
+        Preview
+      </p>
+
+      <div className="overflow-hidden rounded-xl bg-zinc-950/95 text-zinc-100 shadow-lg ring-1 ring-white/10">
+        {/* Banner: current picture, else the chosen colour theme. */}
+        <div
+          className={cn(
+            "relative h-20",
+            !me.bannerUrl && "bg-gradient-to-r",
+            !me.bannerUrl &&
+              (themeEntry?.gradient ?? "from-brand/70 via-brand/40 to-cyan/50"),
+          )}
+        >
+          {me.bannerUrl && (
+            <img
+              src={me.bannerUrl}
+              alt=""
+              className="absolute inset-0 size-full object-cover"
+            />
+          )}
+          <span
+            aria-hidden
+            className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_60%)]"
+          />
+        </div>
+
+        <div className="px-4 pb-4">
+          <div className="-mt-8 inline-block rounded-full bg-zinc-950 p-1 ring-1 ring-white/10">
+            <UserAvatar
+              user={{ ...me, avatarFrame: frameValue }}
+              size="lg"
+            />
+          </div>
+
+          <h3 className="mt-2 break-words text-lg font-semibold leading-snug">
+            {nameValue}
+            <span className="ml-2 inline-flex items-center gap-1 align-middle">
+              <InlineBadge badges={me.badges} primaryBadge={badgeId} />
+              {me.badges.length > 1 && (
+                <span className="inline-flex size-4 items-center justify-center rounded-full bg-white/15 text-[9px] font-bold text-zinc-100">
+                  {me.badges.length}
+                </span>
+              )}
+            </span>
+          </h3>
+
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-zinc-400">
+            <span className="truncate">@{me.username ?? "no username"}</span>
+            {pronounsValue ? (
+              <span className="truncate text-zinc-500">· {pronounsValue}</span>
+            ) : null}
+            {tagValue ? (
+              <span className="inline-flex shrink-0 items-center rounded border border-white/15 bg-white/10 px-1 py-px text-[9px] font-bold uppercase tracking-wider text-zinc-100">
+                {tagValue}
+              </span>
+            ) : null}
+          </div>
+
+          {statusValue ? (
+            <p className="mt-1.5 truncate text-xs text-zinc-500">
+              {statusValue}
+            </p>
+          ) : null}
+
+          <div className="mt-3 rounded-lg bg-white/5 p-3 ring-1 ring-white/10">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+              About me
+            </p>
+            <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-zinc-200">
+              {bioValue || (
+                <span className="text-zinc-600">Nothing here yet.</span>
+              )}
+            </p>
+          </div>
+
+          {linkRows.length > 0 && (
+            <div className="mt-2 rounded-lg bg-white/5 p-3 ring-1 ring-white/10">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                Links
+              </p>
+              <ul className="mt-1.5 space-y-1">
+                {linkRows.map((row, index) => (
+                  <li
+                    key={index}
+                    className="flex items-center gap-1.5 text-sm text-blue-300"
+                  >
+                    <Link2 className="size-3.5 shrink-0" />
+                    <span className="truncate">{row.label || row.url}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <p className="mt-3 text-center text-[11px] text-zinc-500">
+            This is what others see
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1979,7 +2278,7 @@ function AppearanceTab() {
               className={cn(
                 "flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm transition-colors",
                 theme === entry.id
-                  ? "border-primary bg-primary/10 text-foreground"
+                  ? "border-primary ring-1 ring-primary/40 text-foreground"
                   : "border-border/70 bg-surface text-muted-foreground hover:text-foreground",
               )}
             >
