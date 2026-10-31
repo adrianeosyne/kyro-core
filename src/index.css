@@ -1,0 +1,304 @@
+/* DO NOT CHANGE */
+@import "tailwindcss";
+@import "tw-animate-css";
+@custom-variant dark (&:is(.dark *));
+
+/* DO NOT CHANGE */
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-rail: var(--rail);
+  --color-panel: var(--panel);
+  --color-surface: var(--surface);
+  --color-brand: var(--brand);
+  --color-cyan: var(--cyan);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/*
+ * Kyro design tokens.
+ * Dark is the default. Every surface in the app comes from these variables,
+ * so switching theme/accent restyles the whole product in one place.
+ */
+:root {
+  --radius: 0.625rem;
+  color-scheme: light;
+
+  --background: #f5f6f9;
+  --foreground: #14161c;
+  --card: #ffffff;
+  --card-foreground: #14161c;
+  --popover: #ffffff;
+  --popover-foreground: #14161c;
+  --primary: #4c57d6;
+  --primary-foreground: #ffffff;
+  --secondary: #e9ebf2;
+  --secondary-foreground: #14161c;
+  --muted: #e9ebf2;
+  --muted-foreground: #5b6270;
+  --accent: #e6e9f4;
+  --accent-foreground: #14161c;
+  --destructive: #dc2626;
+  --border: rgba(17, 20, 27, 0.1);
+  --input: rgba(17, 20, 27, 0.14);
+  --ring: rgba(76, 87, 214, 0.55);
+  --chart-1: #4c57d6;
+  --chart-2: #0891b2;
+  --chart-3: #16a34a;
+  --chart-4: #d97706;
+  --chart-5: #db2777;
+  --sidebar: #eef0f5;
+  --sidebar-foreground: #14161c;
+  --sidebar-primary: #4c57d6;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e2e5ee;
+  --sidebar-accent-foreground: #14161c;
+  --sidebar-border: rgba(17, 20, 27, 0.09);
+  --sidebar-ring: rgba(76, 87, 214, 0.5);
+
+  --rail: #e6e8ef;
+  --panel: #ffffff;
+  --surface: #f7f8fb;
+  --brand: #4c57d6;
+  --cyan: #0891b2;
+  --success: #16a34a;
+  --warning: #d97706;
+}
+
+.dark {
+  color-scheme: dark;
+  --background: #0b0d12;
+  --foreground: #f3f4f6;
+  --card: #11141b;
+  --card-foreground: #f3f4f6;
+  --popover: #181d27;
+  --popover-foreground: #f3f4f6;
+  --primary: #5865f2;
+  --primary-foreground: #ffffff;
+  --secondary: #171b24;
+  --secondary-foreground: #f3f4f6;
+  --muted: #171b24;
+  --muted-foreground: #9ca3af;
+  --accent: #1d2331;
+  --accent-foreground: #f3f4f6;
+  --destructive: #ef4444;
+  --border: rgba(255, 255, 255, 0.07);
+  --input: rgba(255, 255, 255, 0.1);
+  --ring: rgba(88, 101, 242, 0.6);
+  --chart-1: #5865f2;
+  --chart-2: #67e8f9;
+  --chart-3: #22c55e;
+  --chart-4: #f59e0b;
+  --chart-5: #ec4899;
+  --sidebar: #0e1117;
+  --sidebar-foreground: #f3f4f6;
+  --sidebar-primary: #5865f2;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1a1f2b;
+  --sidebar-accent-foreground: #f3f4f6;
+  --sidebar-border: rgba(255, 255, 255, 0.06);
+  --sidebar-ring: rgba(88, 101, 242, 0.6);
+
+  --rail: #0a0c10;
+  --panel: #11141b;
+  --surface: #181d27;
+  --brand: #5865f2;
+  --cyan: #67e8f9;
+  --success: #22c55e;
+  --warning: #f59e0b;
+}
+
+/* Accent overrides applied to <html> from the appearance settings. */
+html[data-accent="cyan"] {
+  --primary: #0e9fd8;
+  --brand: #0e9fd8;
+}
+html[data-accent="blue"] {
+  --primary: #3b82f6;
+  --brand: #3b82f6;
+}
+html[data-accent="violet"] {
+  --primary: #8b5cf6;
+  --brand: #8b5cf6;
+}
+html[data-accent="emerald"] {
+  --primary: #10b981;
+  --brand: #10b981;
+}
+html[data-accent="teal"] {
+  --primary: #14b8a6;
+  --brand: #14b8a6;
+}
+html[data-accent="rose"] {
+  --primary: #f43f5e;
+  --brand: #f43f5e;
+}
+html[data-accent="orange"] {
+  --primary: #f97316;
+  --brand: #f97316;
+}
+html[data-accent="fuchsia"] {
+  --primary: #d946ef;
+  --brand: #d946ef;
+}
+html[data-accent="amber"] {
+  --primary: #f59e0b;
+  --brand: #f59e0b;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  button:not([disabled]),
+  [role="button"]:not([disabled]) {
+    cursor: pointer;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--primary) 45%, transparent);
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--muted-foreground) 40%, transparent)
+      transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: color-mix(in oklab, var(--muted-foreground) 40%, transparent);
+    border-radius: 999px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklab, var(--muted-foreground) 65%, transparent);
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* Brand helpers used by the marketing site and empty states. */
+  .kyro-gradient-text {
+    background: linear-gradient(96deg, var(--brand), var(--cyan));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .kyro-gradient-bg {
+    background: linear-gradient(
+      96deg,
+      var(--tint-a, var(--brand)),
+      var(--tint-b, #7c5cf6) 55%,
+      var(--tint-b, var(--cyan))
+    );
+  }
+  .kyro-grid {
+    background-image:
+      linear-gradient(to right, color-mix(in oklab, var(--border) 90%, transparent) 1px, transparent 1px),
+      linear-gradient(to bottom, color-mix(in oklab, var(--border) 90%, transparent) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 100%);
+  }
+  .kyro-orb {
+    background: radial-gradient(circle, color-mix(in oklab, var(--brand) 55%, transparent), transparent 65%);
+    filter: blur(60px);
+  }
+  /* Message hover toolbar: hidden until the row is hovered or focused. */
+  .message-row .message-toolbar {
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+  .message-row:hover .message-toolbar,
+  .message-row:focus-within .message-toolbar {
+    opacity: 1;
+  }
+  @media (hover: none) {
+    .message-row .message-toolbar {
+      opacity: 1;
+    }
+  }
+  /* Interface density, set from Appearance settings. */
+  [data-density="compact"] .message-row {
+    padding-block: 1px;
+  }
+  [data-density="compact"] .list-row {
+    min-height: 2.25rem;
+  }
+  [data-density="compact"] .chat-scroll {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+}
+
+/*
+ * Active colour tint (Appearance → Colour themes). A faint gradient wash
+ * over the background; strength comes from --tint-strength (0–12%), and the
+ * stop colours from --tint-a / --tint-b. Both are only ever set while a tint
+ * is active, so the plain background renders with no image at all otherwise.
+ */
+html[data-tint] body {
+  background-image:
+    linear-gradient(
+      160deg,
+      color-mix(in oklab, var(--background) calc(100% - var(--tint-strength, 9%)), var(--tint-a)) 0%,
+      transparent 48%
+    ),
+    linear-gradient(
+      340deg,
+      color-mix(in oklab, var(--background) calc(100% - var(--tint-strength, 9%)), var(--tint-b)) 0%,
+      transparent 40%
+    );
+}

@@ -1,0 +1,5 @@
+.env.local
+node_modules
+dist
+# src/convex/_generated is committed: offline codegen (npm run gen:convex)
+# stands in for `npx convex codegen`, which needs deployment auth.
