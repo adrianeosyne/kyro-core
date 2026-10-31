@@ -24,7 +24,7 @@ import {
   Mail,
 } from "@/components/icons";
 import { Link } from "react-router";
-import { useAction } from "convex/react";
+import { useAction, useMutation } from "convex/react";
 
 const USERNAME_PATTERN = /^[a-z0-9_]{3,32}$/;
 
@@ -51,6 +51,10 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
 
   // `users/createAccount.ts` nests one level deeper in the generated API.
   const createAccountAction = useAction(api.users.createAccount.createAccount);
+  // Fallback path for deployments that predate the custom createAccount action:
+  // Convex Auth can create the credential account itself, then we reserve the
+  // handle with the long-standing claimProfile mutation.
+  const claimProfile = useMutation(api.users.claimProfile);
   const requestCodeAction = useAction(api.passwordReset.requestCode);
   const resetPasswordAction = useAction(api.passwordReset.resetPassword);
   const [step, setStep] = React.useState<Step>("signIn");
@@ -113,33 +117,65 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
     event: React.FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault();
+    if (isLoading) return;
     setIsLoading(true);
     setError(null);
+    const normalizedEmail = email.trim().toLowerCase();
+    const handle = username.trim().toLowerCase();
+    const displayNameValue = displayName.trim() || handle;
     try {
-      if (!USERNAME_PATTERN.test(username.trim())) {
+      if (!USERNAME_PATTERN.test(handle)) {
         setError("Pick a username using only letters, numbers and underscores.");
-        setIsLoading(false);
         return;
       }
       if (password.length < 8) {
         setError("Password must be at least 8 characters.");
-        setIsLoading(false);
         return;
       }
       if (confirmPassword !== password) {
         setError("Passwords do not match.");
-        setIsLoading(false);
         return;
       }
-      await createAccountAction({
-        email: email.trim().toLowerCase(),
-        password,
-        username: username.trim().toLowerCase(),
-        name: displayName.trim() || username.trim(),
-      });
+
+      try {
+        await createAccountAction({
+          email: normalizedEmail,
+          password,
+          username: handle,
+          name: displayNameValue,
+        });
+      } catch (createError) {
+        const message =
+          createError instanceof Error ? createError.message : String(createError);
+        const actionNotDeployed =
+          message.includes("Could not find public function") &&
+          message.toLowerCase().includes("createaccount");
+        if (!actionNotDeployed) throw createError;
+
+        // The backend is older than this client. Use the password provider's
+        // own signUp flow, then claim the handle. If the handle turns out to
+        // be taken, the dashboard's claim screen lets the member pick another
+        // one — the account itself is still created.
+        await signIn("password", {
+          flow: "signUp",
+          email: normalizedEmail,
+          password,
+        });
+        try {
+          await claimProfile({ username: handle, name: displayNameValue });
+        } catch {
+          toast.error("Account created — pick your username to finish.");
+          navigate(redirect);
+          return;
+        }
+        toast.success("Account created — welcome to Kyro!");
+        navigate(redirect);
+        return;
+      }
+
       await signIn("password", {
         flow: "signIn",
-        email: email.trim().toLowerCase(),
+        email: normalizedEmail,
         password,
       });
       toast.success("Account created — welcome to Kyro!");
@@ -518,23 +554,35 @@ function Auth({ redirectAfterAuth }: { redirectAfterAuth?: string }) {
                     />
                   </div>
                 </CardContent>
-                <div className="flex items-center justify-between gap-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={startSignIn}
-                    disabled={isLoading}
-                  >
-                    Back to sign-in
-                  </Button>
-                  <Button type="submit" disabled={isLoading}>
-                    {isLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Check className="h-4 w-4" />
-                    )}                  Create account
-                </Button>
-              </div>
+                <div className="space-y-3">
+                  {error && (
+                    <p
+                      role="alert"
+                      aria-live="polite"
+                      className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-red-500"
+                    >
+                      {error}
+                    </p>
+                  )}
+                  <div className="flex items-center justify-between gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={startSignIn}
+                      disabled={isLoading}
+                    >
+                      Back to sign-in
+                    </Button>
+                    <Button type="submit" disabled={isLoading}>
+                      {isLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Check className="h-4 w-4" />
+                      )}
+                      Create account
+                    </Button>
+                  </div>
+                </div>
             </form>
             </>
           ) : step === "forgot" ? (
