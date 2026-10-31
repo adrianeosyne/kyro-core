@@ -120,28 +120,16 @@ export function SettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[92vh] w-[calc(100vw-1.5rem)] max-w-6xl flex-col gap-0 overflow-hidden p-0 sm:h-[88vh]"
-      >
+      <DialogContent className="flex h-[92vh] w-[calc(100vw-1.5rem)] max-w-6xl flex-col gap-0 overflow-hidden p-0 sm:h-[88vh] sm:max-w-[1200px]">
         <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
           <nav className="shrink-0 gap-1.5 border-b border-border/60 bg-panel/40 p-4 sm:w-72 sm:border-b-0 sm:border-r">
-            <DialogHeader className="mb-4 flex flex-row items-start justify-between px-2 text-left">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/70">
-                  User settings
-                </p>
-                <DialogDescription className="sr-only">
-                  Account, appearance and privacy preferences.
-                </DialogDescription>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-8 shrink-0"
-                onClick={() => onOpenChange(false)}
-                aria-label="Close settings"
-              >
-                <X className="size-4" />
-              </Button>
+            <DialogHeader className="mb-4 px-2 text-left">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/70">
+                User settings
+              </p>
+              <DialogDescription className="sr-only">
+                Account, appearance and privacy preferences.
+              </DialogDescription>
             </DialogHeader>
             {/* Horizontal chip scroller on mobile; grouped sections on desktop. */}
             <div className="flex gap-1.5 overflow-x-auto pb-1 sm:flex-col sm:overflow-visible sm:pb-0">
@@ -870,6 +858,9 @@ function AccountTab({ onEditProfile }: { onEditProfile: () => void }) {
 
   return (
     <>
+      <h2 className="mb-4 text-xl font-semibold tracking-tight sm:text-2xl">
+        My account
+      </h2>
       {/* Two-column account page: live profile preview on the left, editable
           rows on the right. Mobile stacks preview first. `min-w-0` keeps
           long names and handles wrapping cleanly instead of overflowing. */}
@@ -1378,9 +1369,12 @@ function ProfileTab() {
   };
 
   return (
-    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
+    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
       <div className="grid min-w-0 gap-6">
-      <ProfilePromoCard />
+        <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">
+          My profile
+        </h2>
+        <ProfilePromoCard />
 
       <section>
         <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/70">

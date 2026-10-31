@@ -55,7 +55,7 @@ export function ServerTagChip({
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-[22rem] rounded-2xl p-6 text-center sm:p-8">
+        <DialogContent className="max-w-[22rem] rounded-2xl p-6 text-center sm:max-w-[22rem] sm:p-8">
           <DialogHeader className="flex flex-col items-center gap-3 text-center sm:text-center">
             {/* Big icon — the centrepiece of the preview. */}
             {preview === undefined ? (

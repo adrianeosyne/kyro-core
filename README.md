@@ -35,8 +35,11 @@ like `/invite/<code>` work). Steps:
 3. `VITE_VLY_APP_ID` and `VITE_VLY_MONITORING_URL` are the Freebuff platform
    monitoring hook; they are optional and only affect error reporting.
 4. Deploy. The Convex functions themselves are **not** deployed by Vercel —
-   push backend changes with `npx convex push` (or `npx convex dev` for the
-   sandbox) using your Convex CLI login.
+   push backend changes with `npx convex deploy` (production) or
+   `npx convex dev` (local dev deployment) using your Convex CLI login.
+   If the app reports `Could not find public function for 'files:registerUpload'`,
+   the deployed backend is stale: run `npx convex deploy` against the
+   deployment in `VITE_CONVEX_URL`.
 
 After any change to Convex function files, regenerate the static api stub:
 `npm run gen:convex` (it mirrors what `npx convex codegen` produces).
