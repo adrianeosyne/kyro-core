@@ -16,11 +16,15 @@ export interface PendingAttachment {
 }
 
 /**
- * Set once a deployment reports that `files:registerUpload` doesn't exist, so
- * later uploads skip the doomed call instead of paying for a failed mutation
- * every time. A page reload resets this after the backend is upgraded.
+ * Upload registration was added after Kyro's current production deployment.
+ * Keep it opt-in until that deployment has the matching `files` mutation;
+ * otherwise even a handled Convex mutation rejection is surfaced by the
+ * realtime client as a scary server error. Once production is upgraded, set
+ * `VITE_CONVEX_UPLOAD_REGISTRATION=true` and every upload gets ownership
+ * tracking again without another code change.
  */
-let registerUploadUnavailable = false;
+const uploadRegistrationEnabled =
+  import.meta.env.VITE_CONVEX_UPLOAD_REGISTRATION === "true";
 
 /**
  * Files go straight to object storage through a short-lived signed URL, so
@@ -54,7 +58,10 @@ export function useUploadFile() {
         mimeType: file.type || "application/octet-stream",
       };
 
-      if (registerUploadUnavailable) return attachment;
+      // The signed upload has already completed. Legacy Kyro mutations accept
+      // this storage id directly, so never call a function that production is
+      // known not to expose.
+      if (!uploadRegistrationEnabled) return attachment;
 
       try {
         return await registerUpload({
@@ -72,7 +79,6 @@ export function useUploadFile() {
         // The object is already in Convex storage. Older deployments predate
         // upload ownership tracking, so they accept the storage id directly —
         // return the local metadata instead of failing the whole upload.
-        registerUploadUnavailable = true;
         return attachment;
       }
     },
