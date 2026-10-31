@@ -1,6 +1,12 @@
 import { useAction, useMutation, useQuery } from "convex/react";
+import type {
+  DefaultFunctionArgs,
+  FunctionReference,
+  FunctionVisibility,
+} from "convex/server";
 import {
   AlertTriangle,
+  Copy,
   Download,
   Eye,
   EyeOff,
@@ -17,6 +23,7 @@ import {
   X,
 } from "@/components/icons";
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useNow } from "@/hooks/use-now";
@@ -52,7 +59,6 @@ import {
   GLOBAL_BADGE_META,
   GlobalBadgeIcon,
   GlobalBadges,
-  InlineBadge,
 } from "@/components/app/GlobalBadges";
 import { Slider } from "@/components/ui/slider";
 import { MAX_UPLOAD_BYTES, useUploadFile } from "@/lib/upload";
@@ -110,40 +116,85 @@ export function SettingsDialog({
     (TABS.find((entry) => entry.id === initialTab)?.id as TabId) ?? "account",
   );
 
+  const groups: { heading: string; ids: TabId[] }[] = [
+    { heading: "Account", ids: ["account", "profile"] },
+    { heading: "App", ids: ["appearance"] },
+    { heading: "Safety", ids: ["privacy", "security"] },
+    { heading: "Advanced", ids: ["data"] },
+  ];
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[92vh] w-[calc(100vw-1.5rem)] max-w-6xl flex-col gap-0 overflow-hidden p-0 data-[state=open]:duration-200 sm:h-[88vh]">
+      <DialogContent className="flex h-[92vh] w-[calc(100vw-1.5rem)] max-w-6xl flex-col gap-0 overflow-hidden p-0 sm:h-[88vh]"
+      >
         <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
           <nav className="shrink-0 gap-1.5 border-b border-border/60 bg-panel/40 p-4 sm:w-72 sm:border-b-0 sm:border-r">
-            <DialogHeader className="mb-4 px-2 text-left">
-              <DialogTitle className="text-lg">
-                User settings
-                <span className="ml-2 rounded-full bg-brand/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand">
-                  Kyro
-                </span>
-              </DialogTitle>
-              <DialogDescription className="sr-only">
-                Account, appearance and privacy preferences.
-              </DialogDescription>
+            <DialogHeader className="mb-4 flex flex-row items-start justify-between px-2 text-left">
+              <div>
+                <DialogTitle className="text-lg">
+                  User settings
+                  <span className="ml-2 rounded-full bg-brand/10 px-1.5 py-0.5 align-middle text-[10px] font-semibold uppercase tracking-wider text-brand">
+                    Kyro
+                  </span>
+                </DialogTitle>
+                <DialogDescription className="sr-only">
+                  Account, appearance and privacy preferences.
+                </DialogDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8 shrink-0"
+                onClick={() => onOpenChange(false)}
+                aria-label="Close settings"
+              >
+                <X className="size-4" />
+              </Button>
             </DialogHeader>
+            {/* Horizontal chip scroller on mobile; grouped sections on desktop. */}
             <div className="flex gap-1.5 overflow-x-auto pb-1 sm:flex-col sm:overflow-visible sm:pb-0">
-              {TABS.map((entry) => (
-                <button
-                  key={entry.id}
-                  type="button"
-                  onClick={() => setTab(entry.id)}
-                  className={cn(
-                    "flex shrink-0 items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm transition-all duration-150",
-                    tab === entry.id
-                      ? "bg-surface font-medium text-foreground shadow-sm ring-1 ring-border/70"
-                      : "text-muted-foreground hover:bg-surface/60 hover:text-foreground",
-                  )}
-                >
-                  <entry.icon className="size-4" />
-                  {entry.label}
-                </button>
+              {groups.map((group) => (
+                <div key={group.heading} className="sm:mb-2 sm:contents sm:last:mb-0">
+                  {/* Section label is only meaningful in the stacked (desktop)
+                      layout; on mobile every chip is self-describing. */}
+                  <p className="hidden px-3 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70 sm:block sm:first-of-type:mt-0">
+                    {group.heading}
+                  </p>
+                  <div className="flex gap-1.5 sm:flex-col">
+                    {group.ids.map((id) => {
+                      const entry = TABS.find((t) => t.id === id);
+                      if (!entry) return null;
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => setTab(id)}
+                          className={cn(
+                            "relative flex shrink-0 items-center gap-2.5 overflow-hidden rounded-lg px-3 py-2.5 text-left text-sm transition-all duration-150",
+                            tab === id
+                              ? "bg-surface font-medium text-foreground shadow-sm ring-1 ring-border/70"
+                              : "text-muted-foreground hover:bg-surface/60 hover:text-foreground",
+                          )}
+                        >
+                          {tab === id && (
+                            <span
+                              aria-hidden
+                              className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-brand"
+                            />
+                          )}
+                          <entry.icon className="size-4" />
+                          {entry.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               ))}
             </div>
+            <p className="hidden px-3 pt-6 text-[11px] leading-relaxed text-muted-foreground/60 sm:block">
+              Tip: everything here only affects your account — no one else can
+              change it.
+            </p>
           </nav>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6 sm:px-8 sm:py-8">
@@ -749,7 +800,6 @@ function AccountTab({ onEditProfile }: { onEditProfile: () => void }) {
   const [passwordOpen, setPasswordOpen] = useState(false);
   const updatePrivacy = useMutation(api.users.updatePrivacy);
   const revokeOthers = useMutation(api.users.revokeOtherSessions);
-  const setPresence = useMutation(api.users.setPresence);
 
   const logoutEverywhere = async () => {
     if (busy) return;
@@ -809,242 +859,207 @@ function AccountTab({ onEditProfile }: { onEditProfile: () => void }) {
 
   return (
     <>
-      {/* Identity card: banner, avatar and the field rows beneath it. */}
-      <section className="mb-7">
-        <div className="overflow-hidden rounded-2xl border border-border/70 bg-surface shadow-sm">
-          <div className="relative h-32 bg-gradient-to-r from-brand/60 via-brand/30 to-cyan/40">
-            {me.bannerUrl && (
-              <img
-                src={me.bannerUrl}
-                alt=""
-                className="size-full object-cover"
-              />
-            )}
-            <span
-              aria-hidden
-              className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_60%)]"
-            />
+      {/* Two-column account page: live profile preview on the left, editable
+          rows on the right. Mobile stacks preview first. `min-w-0` keeps
+          long names and handles wrapping cleanly instead of overflowing. */}
+      <div className="mb-7 grid items-start gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
+        <ProfilePreviewCard me={me} onEditProfile={onEditProfile} />
+
+        <div className="grid gap-3">
+          <div className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border/70 bg-surface">
+            <AccountRow
+              label="Display name"
+              action={
+                editing === "name" ? (
+                  <div className="flex shrink-0 gap-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={busy}
+                      onClick={() => setEditing(null)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={
+                        busy ||
+                        nameDraft.trim().length < 2 ||
+                        nameDraft === me.name
+                      }
+                      onClick={() => void save("name")}
+                    >
+                      {busy && <Loader2 className="mr-1.5 size-4 animate-spin" />}
+                      Save
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setNameDraft(me.name);
+                      setEditing("name");
+                    }}
+                  >
+                    Edit
+                  </Button>
+                )
+              }
+            >
+              {editing === "name" ? (
+                <Input
+                  autoFocus
+                  value={nameDraft}
+                  onChange={(event) => setNameDraft(event.target.value)}
+                  maxLength={64}
+                  className="h-9"
+                  aria-label="Display name"
+                />
+              ) : (
+                <span className="break-words">{me.name}</span>
+              )}
+            </AccountRow>
+
+            <AccountRow
+              label="Username"
+              hint={
+                cooldownMs > 0
+                  ? `You can change your username again in ${cooldownLabel}.`
+                  : "You can change your username once every hour."
+              }
+              action={
+                editing === "username" ? (
+                  <div className="flex shrink-0 gap-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={busy}
+                      onClick={() => setEditing(null)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={
+                        busy ||
+                        userDraft.length < 3 ||
+                        userDraft === me.username
+                      }
+                      onClick={() => void save("username")}
+                    >
+                      {busy && <Loader2 className="mr-1.5 size-4 animate-spin" />}
+                      Save
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={cooldownMs > 0}
+                    onClick={() => {
+                      setUserDraft(me.username ?? "");
+                      setEditing("username");
+                    }}
+                  >
+                    Edit
+                  </Button>
+                )
+              }
+            >
+              {editing === "username" ? (
+                <Input
+                  autoFocus
+                  value={userDraft}
+                  onChange={(event) => setUserDraft(event.target.value.toLowerCase())}
+                  maxLength={32}
+                  className="h-9"
+                  aria-label="Username"
+                />
+              ) : (
+                <span className="break-words">@{me.username ?? "—"}</span>
+              )}
+            </AccountRow>
+
+            <AccountRow
+              label="Email"
+              action={
+                me.email ? (
+                  <div className="flex shrink-0 gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        void navigator.clipboard
+                          .writeText(me.email as string)
+                          .then(() => toast.success("Email copied"))
+                          .catch(() => toast.error("Could not copy."));
+                      }}
+                    >
+                      <Copy className="size-4" /> Copy
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setRevealed((value) => !value)}
+                    >
+                      {revealed ? "Hide" : "Reveal"}
+                    </Button>
+                  </div>
+                ) : undefined
+              }
+            >
+              {me.email ? (
+                <span className="break-words">
+                  {revealed ? me.email : maskEmail(me.email)}
+                </span>
+              ) : (
+                <span className="text-muted-foreground">No email on file</span>
+              )}
+            </AccountRow>
+
+            <AccountRow
+              label="Password"
+              action={
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setPasswordOpen(true)}
+                >
+                  Change
+                </Button>
+              }
+            >
+              <span className="text-muted-foreground">••••••••</span>
+              <span className="ml-1.5 text-xs text-muted-foreground/70">
+                updated to a new value on change — never shown
+              </span>
+            </AccountRow>
           </div>
-          <div className="px-5 pb-4">
-            <div className="-mt-14 flex flex-wrap items-end gap-4">
-              <div className="shrink-0 rounded-full bg-surface p-1.5 shadow-lg ring-1 ring-border/60">
-                <UserAvatar user={me} size="2xl" />
-              </div>
-              <div className="min-w-0 flex-1 pb-2">
-                <p className="flex flex-wrap items-center gap-2 text-xl font-semibold leading-tight">
-                  <span className="truncate">{me.name}</span>
-                  <InlineBadge badges={me.badges} primaryBadge={me.primaryBadge} />
-                </p>
-                <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm text-muted-foreground">
-                  <PresenceDot presence={me.presence} size="sm" ringClassName="" />
-                  @{me.username ?? "no username"}
-                  {me.customStatus ? ` · ${me.customStatus}` : ""}
-                </p>
-              </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/70 bg-surface px-4 py-3">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">Devices</p>
+              <p className="text-xs text-muted-foreground">
+                Signed in on your other devices? End them — including sessions
+                you no longer recognise.
+              </p>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <Button variant="outline" onClick={() => void signOut()}>
+                <LogOut className="mr-2 size-4" /> Sign out
+              </Button>
               <Button
-                variant="outline"
-                size="sm"
-                className="mb-2 shrink-0"
-                onClick={onEditProfile}
+                variant="destructive"
+                disabled={busy}
+                onClick={() => void logoutEverywhere()}
               >
-                <Palette className="mr-1.5 size-4" /> Edit profile
+                Everywhere
               </Button>
             </div>
-
-            {me.badges.length > 0 && (
-              <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-3">
-                <span className="mr-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Badges
-                </span>
-                <GlobalBadges badges={me.badges} />
-              </div>
-            )}
-
-            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Status
-              </span>
-              {PRESENCE_CHOICES.map((choice) => (
-                <button
-                  key={choice.value}
-                  type="button"
-                  onClick={() =>
-                    void setPresence({ status: choice.value }).catch((error) =>
-                      toast.error(
-                        error instanceof Error
-                          ? error.message
-                          : "Could not update your status.",
-                      ),
-                    )
-                  }
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs transition-colors",
-                    me.presence === choice.value
-                      ? "border-brand/50 bg-brand/10 text-foreground"
-                      : "border-border/70 text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <PresenceDot
-                    presence={choice.value}
-                    size="xs"
-                    ringClassName=""
-                  />
-                  {choice.label}
-                </button>
-              ))}
-            </div>
           </div>
         </div>
-
-        <div className="mt-3 divide-y divide-border/60 overflow-hidden rounded-xl border border-border/70 bg-surface">
-          <AccountRow
-            label="Display name"
-            action={
-              editing === "name" ? (
-                <div className="flex shrink-0 gap-2">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={busy}
-                    onClick={() => setEditing(null)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    size="sm"
-                    disabled={
-                      busy ||
-                      nameDraft.trim().length < 2 ||
-                      nameDraft === me.name
-                    }
-                    onClick={() => void save("name")}
-                  >
-                    {busy && <Loader2 className="mr-1.5 size-4 animate-spin" />}
-                    Save
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setNameDraft(me.name);
-                    setEditing("name");
-                  }}
-                >
-                  Edit
-                </Button>
-              )
-            }
-          >
-            {editing === "name" ? (
-              <Input
-                autoFocus
-                value={nameDraft}
-                onChange={(event) => setNameDraft(event.target.value)}
-                maxLength={64}
-                className="h-9"
-                aria-label="Display name"
-              />
-            ) : (
-              <span className="truncate">{me.name}</span>
-            )}
-          </AccountRow>
-
-          <AccountRow
-            label="Username"
-            hint={
-              cooldownMs > 0
-                ? `You can change your username again in ${cooldownLabel}.`
-                : "You can change your username once every hour."
-            }
-            action={
-              editing === "username" ? (
-                <div className="flex shrink-0 gap-2">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={busy}
-                    onClick={() => setEditing(null)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    size="sm"
-                    disabled={
-                      busy ||
-                      userDraft.length < 3 ||
-                      userDraft === me.username
-                    }
-                    onClick={() => void save("username")}
-                  >
-                    {busy && <Loader2 className="mr-1.5 size-4 animate-spin" />}
-                    Save
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={cooldownMs > 0}
-                  onClick={() => {
-                    setUserDraft(me.username ?? "");
-                    setEditing("username");
-                  }}
-                >
-                  Edit
-                </Button>
-              )
-            }
-          >
-            {editing === "username" ? (
-              <Input
-                autoFocus
-                value={userDraft}
-                onChange={(event) => setUserDraft(event.target.value.toLowerCase())}
-                maxLength={32}
-                className="h-9"
-                aria-label="Username"
-              />
-            ) : (
-              <span className="truncate">@{me.username ?? "—"}</span>
-            )}
-          </AccountRow>
-
-          <AccountRow
-            label="Email"
-            action={
-              me.email ? (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setRevealed((value) => !value)}
-                >
-                  {revealed ? "Hide" : "Reveal"}
-                </Button>
-              ) : undefined
-            }
-          >
-            {me.email ? (
-              <span className="truncate">
-                {revealed ? me.email : maskEmail(me.email)}
-              </span>
-            ) : (
-              <span className="text-muted-foreground">No email on file</span>
-            )}
-          </AccountRow>
-        </div>
-      </section>
-
-      <Section title="Password and authentication">
-        <Button onClick={() => setPasswordOpen(true)}>
-          Change password
-        </Button>
-        <p className="mt-2 text-xs text-muted-foreground">
-          You'll need your current password. Changing it doesn't sign you out
-          here.
-        </p>
-      </Section>
+      </div>
 
       <AccountStanding />
 
@@ -1097,31 +1112,6 @@ function AccountTab({ onEditProfile }: { onEditProfile: () => void }) {
 
       <BugHunting />
 
-      <Section title="Account">
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-surface p-4">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold">Log out of all devices</p>
-            <p className="text-xs text-muted-foreground">
-              Signs this account out everywhere, including here. Use it if you
-              think someone else has your login.
-            </p>
-          </div>
-          <Button
-            variant="destructive"
-            disabled={busy}
-            onClick={() => void logoutEverywhere()}
-          >
-            Log out everywhere
-          </Button>
-        </div>
-      </Section>
-
-      <Section title="Session">
-        <Button variant="outline" onClick={() => void signOut()}>
-          <LogOut className="mr-2 size-4" /> Sign out
-        </Button>
-      </Section>
-
       <ChangePasswordDialog
         open={passwordOpen}
         onOpenChange={setPasswordOpen}
@@ -1129,6 +1119,196 @@ function AccountTab({ onEditProfile }: { onEditProfile: () => void }) {
     </>
   );
 }
+
+/**
+ * Live profile card: exactly what other members see, always current. Owns
+ * the presence picker and the quick custom-status field so edits reflect in
+ * the same card without waiting for a save pass.
+ */
+function ProfilePreviewCard({
+  me,
+  onEditProfile,
+}: {
+  me: LiveMe;
+  onEditProfile: () => void;
+}) {
+  const navigate = useNavigate();
+  const setPresence = useMutation(api.users.setPresence);
+  const update = useMutation(api.users.updateProfile);
+  const [statusDraft, setStatusDraft] = useState<string | null>(null);
+  const statusValue = statusDraft ?? me.customStatus ?? "";
+
+  const commitStatus = () => {
+    if (statusDraft === null) return;
+    const next = statusDraft.trim();
+    setStatusDraft(null);
+    if (next === (me.customStatus ?? "")) return;
+    void update({ customStatus: next }).catch((error) => {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not update your status.",
+      );
+    });
+  };
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-border/70 bg-surface shadow-sm">
+      {/* Banner: uploaded picture, or the profile colour theme, or a default. */}
+      <div
+        className={cn(
+          "relative h-24",
+          !me.bannerUrl && "bg-gradient-to-r",
+          !me.bannerUrl &&
+            (PROFILE_THEMES.find((theme) => theme.id === me.profileTheme)
+              ?.gradient ??
+              "from-brand/60 via-brand/30 to-cyan/40"),
+        )}
+      >
+        {me.bannerUrl && (
+          <img
+            src={me.bannerUrl}
+            alt=""
+            className="absolute inset-0 size-full object-cover"
+          />
+        )}
+        <span
+          aria-hidden
+          className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_60%)]"
+        />
+      </div>
+
+      <div className="px-4 pb-4">
+        <div className="-mt-10 min-w-0">
+          <div className="inline-block rounded-full bg-surface p-1.5 shadow-lg ring-1 ring-border/60">
+            <UserAvatar user={me} size="2xl" />
+          </div>
+
+          <h3 className="mt-2 break-words text-lg font-semibold leading-snug">
+            {me.name}
+          </h3>
+          <div className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+            <PresenceDot
+              presence={me.presence}
+              size="sm"
+              ringClassName=""
+            />
+            <span className="min-w-0 truncate">@{me.username ?? "no username"}</span>
+            <button
+              type="button"
+              title="Copy handle"
+              aria-label="Copy handle"
+              className="shrink-0 rounded p-0.5 text-muted-foreground/70 transition-colors hover:text-foreground"
+              onClick={() => {
+                const handle = `@${me.username ?? ""}`;
+                void navigator.clipboard
+                  .writeText(handle)
+                  .then(() => toast.success("Handle copied"))
+                  .catch(() => toast.error("Could not copy."));
+              }}
+            >
+              <Copy className="size-3.5" />
+            </button>
+          </div>
+
+          {/* Custom status: saves on Enter or focus-out, clears empty. */}
+          <Input
+            value={statusValue}
+            onChange={(event) => setStatusDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                commitStatus();
+                event.currentTarget.blur();
+              }
+            }}
+            onBlur={commitStatus}
+            maxLength={100}
+            placeholder="Set a custom status…"
+            aria-label="Custom status"
+            className="mt-2.5 h-8 bg-panel/60 text-xs"
+          />
+
+          {me.badges.length > 0 && (
+            <div className="mt-3 border-t border-border/60 pt-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80">
+                Badges
+              </p>
+              <GlobalBadges badges={me.badges} className="mt-1.5" />
+            </div>
+          )}
+
+          <div className="mt-3 border-t border-border/60 pt-3">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80">
+              Status
+            </p>
+            <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+              {PRESENCE_CHOICES.map((choice) => (
+                <button
+                  key={choice.value}
+                  type="button"
+                  onClick={() =>
+                    void setPresence({ status: choice.value }).catch((error) =>
+                      toast.error(
+                        error instanceof Error
+                          ? error.message
+                          : "Could not update your status.",
+                      ),
+                    )
+                  }
+                  className={cn(
+                    "flex items-center gap-1.5 justify-center rounded-lg border px-2 py-1.5 text-xs transition-colors",
+                    me.presence === choice.value
+                      ? "border-brand/50 bg-brand/10 text-foreground"
+                      : "border-border/70 text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <PresenceDot
+                    presence={choice.value}
+                    size="xs"
+                    ringClassName=""
+                  />
+                  <span className="truncate">{choice.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-3.5 grid gap-2">
+            <Button onClick={onEditProfile} className="w-full">
+              <Palette className="mr-1.5 size-4" /> Edit profile
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() =>
+                navigate(
+                  `/dashboard?user=${me.id}`,
+                )
+              }
+            >
+              View my profile
+            </Button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** Pull the return type out of a generated query reference. */
+type QueryReturns<Ref> =
+  Ref extends FunctionReference<
+    "query",
+    FunctionVisibility,
+    DefaultFunctionArgs,
+    infer Returns
+  >
+    ? Returns
+    : never;
+
+/** The hydrated `users.me` view the preview card renders. */
+type LiveMe = NonNullable<QueryReturns<typeof api.users.me>>;
 
 function ProfileTab() {
   const me = useQuery(api.users.me);
