@@ -138,8 +138,12 @@ export function ProfileCard() {
   return (
     <Dialog open onOpenChange={close}>
       <DialogContent
+        overlayClassName="data-[state=closed]:duration-0"
         className={cn(
           "flex max-h-[92vh] w-[calc(100vw-1.5rem)] flex-col gap-0 overflow-hidden rounded-2xl border-border/70 bg-background p-0 sm:max-w-[36rem]",
+          // Unmount instantly on close so the next member-sidebar click isn't
+          // swallowed by the fading backdrop.
+          "data-[state=closed]:duration-0",
           // Radix's close button floats over the banner — keep it legible on
           // every banner (including bright photos) with a translucent coin.
           "[&>button[data-slot=dialog-close]]:right-4 [&>button[data-slot=dialog-close]]:top-4 [&>button[data-slot=dialog-close]]:rounded-full [&>button[data-slot=dialog-close]]:bg-black/45 [&>button[data-slot=dialog-close]]:p-1.5 [&>button[data-slot=dialog-close]]:text-white [&>button[data-slot=dialog-close]]:opacity-90 [&>button[data-slot=dialog-close]]:shadow-sm [&>button[data-slot=dialog-close]]:hover:bg-black/65 [&>button[data-slot=dialog-close]]:hover:opacity-100",
@@ -414,7 +418,11 @@ export function ProfileCard() {
                             const granted = user.badges.includes(badge);
                             // Badge id → setBadges argument name (bughunter → bugHunter).
                             const field:
+                              | "coFounder"
                               | "admin"
+                              | "manager"
+                              | "staff"
+                              | "trialStaff"
                               | "moderator"
                               | "verified"
                               | "bugHunter"
@@ -423,7 +431,13 @@ export function ProfileCard() {
                               | "supporter"
                               | "donator"
                               | "partner" =
-                              badge === "bughunter" ? "bugHunter" : badge;
+                              badge === "bughunter"
+                                ? "bugHunter"
+                                : badge === "cofounder"
+                                  ? "coFounder"
+                                  : badge === "trialstaff"
+                                    ? "trialStaff"
+                                    : badge;
                             return (
                               <button
                                 key={badge}

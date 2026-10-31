@@ -73,11 +73,22 @@ export function MemberList({ serverId }: { serverId: string }) {
   const offline = data.offline.filter(matches);
 
   const row = (member: Member) => (
-    <button
+    // A div (not a button) because the tag chip inside is its own button —
+    // nested buttons are invalid HTML and made clicks miss the row.
+    <div
       key={member.user.id}
-      type="button"
+      role="button"
+      tabIndex={0}
+      aria-label={`Open ${member.nickname ?? member.user.name}'s profile`}
+      data-profile-user={member.user.id}
       onClick={() => openProfile(member.user.id)}
-      className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-surface"
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          openProfile(member.user.id);
+        }
+      }}
+      className="flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
     >
       <UserAvatar user={member.user} size="sm" />
       <span className="min-w-0 flex-1">
@@ -112,7 +123,7 @@ export function MemberList({ serverId }: { serverId: string }) {
           </span>
         )}
       </span>
-    </button>
+    </div>
   );
 
   return (

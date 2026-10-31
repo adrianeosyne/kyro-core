@@ -43,6 +43,14 @@ const schema = defineSchema(
       // --- Platform-wide (global) badges, granted by staff ---
       /** Site-wide Moderator badge — not tied to any one community. */
       siteModerator: v.optional(v.boolean()),
+      /** Staff team: Trial Staff badge (probationary team member). */
+      trialStaff: v.optional(v.boolean()),
+      /** Staff team: full Staff badge. */
+      staff: v.optional(v.boolean()),
+      /** Staff team: Manager badge for staff leads. */
+      manager: v.optional(v.boolean()),
+      /** Staff team: Co Founder badge for Kyro's co-founders. */
+      coFounder: v.optional(v.boolean()),
       /** Site-wide Verified badge — granted by admins. */
       verified: v.optional(v.boolean()),
       /** Site-wide Bug Hunter badge — granted for a confirmed bug report. */

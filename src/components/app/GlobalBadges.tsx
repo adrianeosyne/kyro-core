@@ -41,21 +41,29 @@ export function BadgeTip({
  * Every icon is original 2D vector artwork drawn for Kyro. The family shares
  * one "gem plate" silhouette — a rounded diamond set at 45° with an inner
  * gloss — and each badge gets its own hue + glyph:
- *  - founder   — royal crown, gold plate
- *  - admin     — star, crimson plate
- *  - moderator — shield + check, emerald plate
- *  - verified  — seal + check, blue plate
- *  - bughunter — bug under a target ring, amber plate
- *  - vip       — faceted diamond, violet plate
- *  - og        — rocket with star, teal plate
- *  - supporter — heart, rose plate
- *  - donator   — coin, gold plate
- *  - partner   — interlocked rings, indigo plate
+ *  - founder    — royal crown, gold plate
+ *  - cofounder  — crown + star, violet plate
+ *  - admin      — star, crimson plate
+ *  - manager    — three rank chevrons, lime plate
+ *  - staff      — key, sky plate
+ *  - moderator  — shield + check, emerald plate
+ *  - trialstaff — hourglass, steel plate
+ *  - verified   — seal + check, blue plate
+ *  - bughunter  — bug under a target ring, amber plate
+ *  - vip        — faceted diamond, violet plate
+ *  - og         — rocket with star, teal plate
+ *  - supporter  — heart, rose plate
+ *  - donator    — coin, gold plate
+ *  - partner    — interlocked rings, indigo plate
  */
 export type GlobalBadgeKey =
   | "founder"
+  | "cofounder"
   | "admin"
+  | "manager"
+  | "staff"
   | "moderator"
+  | "trialstaff"
   | "verified"
   | "bughunter"
   | "vip"
@@ -73,15 +81,35 @@ export const GLOBAL_BADGE_META: Record<
     blurb: "Built Kyro from the ground up.",
     chip: "border-amber-300/60 bg-gradient-to-br from-amber-400/30 via-yellow-500/10 to-amber-500/5 text-amber-600 dark:text-amber-300",
   },
+  cofounder: {
+    label: "Co Founder",
+    blurb: "Co-founded Kyro and helps steer it.",
+    chip: "border-violet-400/60 bg-gradient-to-br from-violet-500/30 via-purple-500/15 to-amber-400/10 text-violet-600 dark:text-violet-300",
+  },
   admin: {
     label: "Admin",
     blurb: "Runs the Kyro platform.",
     chip: "border-rose-400/50 bg-gradient-to-br from-rose-500/25 via-rose-500/10 to-rose-500/0 text-rose-600 dark:text-rose-300",
   },
+  manager: {
+    label: "Manager",
+    blurb: "Leads Kyro's staff and communities.",
+    chip: "border-lime-400/50 bg-gradient-to-br from-lime-500/25 via-lime-500/10 to-lime-500/0 text-lime-600 dark:text-lime-300",
+  },
+  staff: {
+    label: "Staff",
+    blurb: "Part of the Kyro staff team.",
+    chip: "border-sky-400/50 bg-gradient-to-br from-sky-500/25 via-sky-500/10 to-sky-500/0 text-sky-600 dark:text-sky-300",
+  },
   moderator: {
     label: "Moderator",
     blurb: "Keeps Kyro safe for everyone.",
     chip: "border-emerald-400/50 bg-gradient-to-br from-emerald-500/25 via-emerald-500/10 to-emerald-500/0 text-emerald-600 dark:text-emerald-300",
+  },
+  trialstaff: {
+    label: "Trial Staff",
+    blurb: "Trying out for the Kyro staff team.",
+    chip: "border-slate-400/50 bg-gradient-to-br from-slate-400/25 via-slate-500/10 to-slate-500/0 text-slate-600 dark:text-slate-300",
   },
   verified: {
     label: "Verified",
@@ -122,8 +150,12 @@ export const GLOBAL_BADGE_META: Record<
 
 /** Badges staff can grant (founder is derived from the account). */
 export const GRANTABLE_BADGES = [
+  "cofounder",
   "admin",
+  "manager",
+  "staff",
   "moderator",
+  "trialstaff",
   "verified",
   "bughunter",
   "vip",
@@ -137,8 +169,12 @@ export type GrantableBadge = (typeof GRANTABLE_BADGES)[number];
 /** Inline display order — compact rows show only the highest of these. */
 export const BADGE_PRIORITY: GlobalBadgeKey[] = [
   "founder",
+  "cofounder",
   "admin",
+  "manager",
+  "staff",
   "moderator",
+  "trialstaff",
   "partner",
   "bughunter",
   "vip",
@@ -160,9 +196,9 @@ export function topGlobalBadge(
 /**
  * Inline badge next to a name, styled exactly like the founder crown.
  * Shows the badge the user picked in Settings → Profile → Badge (when they
- * hold it), else their highest one (founder → admin → moderator →
- * verified). `primaryBadge="none"` hides inline badges everywhere — the
- * profile card still shows the full shelf.
+ * hold it), else their highest one (founder → co-founder → admin → manager →
+ * staff → moderator → trial staff → …). `primaryBadge="none"` hides inline
+ * badges everywhere — the profile card still shows the full shelf.
  */
 export function InlineBadge({
   badges,
@@ -208,13 +244,29 @@ const BADGE_ART: Record<
   Exclude<GlobalBadgeKey, "founder">,
   { stops: [string, string, string]; edge: string; vertical?: boolean }
 > = {
+  cofounder: {
+    stops: ["#c4b5fd", "#8b5cf6", "#4c1d95"],
+    edge: "#2e1065",
+  },
   admin: {
     stops: ["#fda4af", "#f43f5e", "#9f1239"],
     edge: "#881337",
   },
+  manager: {
+    stops: ["#d9f99d", "#84cc16", "#3f6212"],
+    edge: "#365314",
+  },
+  staff: {
+    stops: ["#bae6fd", "#0ea5e9", "#075985"],
+    edge: "#0c4a6e",
+  },
   moderator: {
     stops: ["#6ee7b7", "#10b981", "#047857"],
     edge: "#065f46",
+  },
+  trialstaff: {
+    stops: ["#cbd5e1", "#64748b", "#1e293b"],
+    edge: "#0f172a",
   },
   verified: {
     stops: ["#93c5fd", "#3b82f6", "#1d4ed8"],
@@ -315,6 +367,96 @@ export function GlobalBadgeIcon({
             stroke={white}
             strokeWidth="0.9"
             strokeLinejoin="round"
+          />
+        </>
+      )}
+
+      {badge === "cofounder" && (
+        <>
+          {/* three-point crown with a star for the co-founder */}
+          <path
+            d="M7.9 15.3 8.5 9.5l2.3 2L12 8.5l1.2 3 2.3-2 .6 5.8Z"
+            fill={white}
+            stroke={white}
+            strokeWidth="0.5"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M8.3 16.7h7.4"
+            stroke={white}
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
+          <path
+            d="M12 5.1l.45 1.05 1.05.45-1.05.45-.45 1.05-.45-1.05-1.05-.45 1.05-.45Z"
+            fill={white}
+          />
+        </>
+      )}
+
+      {badge === "manager" && (
+        <>
+          {/* three rank chevrons */}
+          <g
+            fill="none"
+            stroke={white}
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="m8 9.1 4 2.7 4-2.7" />
+            <path d="m8 12.2 4 2.7 4-2.7" />
+            <path d="m8 15.3 4 2.7 4-2.7" />
+          </g>
+        </>
+      )}
+
+      {badge === "staff" && (
+        <>
+          {/* key: trusted access to the team */}
+          <circle
+            cx="10"
+            cy="10"
+            r="2.6"
+            fill="none"
+            stroke={white}
+            strokeWidth="1.7"
+          />
+          <circle cx="10" cy="10" r="0.9" fill={white} />
+          <path
+            d="m11.9 11.9 3.7 3.7"
+            stroke={white}
+            strokeWidth="1.7"
+            strokeLinecap="round"
+          />
+          <path
+            d="m13.6 13.6 1.2-1.2M15.2 15.2l1.2-1.2"
+            stroke={white}
+            strokeWidth="1.7"
+            strokeLinecap="round"
+          />
+        </>
+      )}
+
+      {badge === "trialstaff" && (
+        <>
+          {/* hourglass: a trial period on the team */}
+          <path d="M9.2 7.8h5.6L12 12Z" fill={white} />
+          <path
+            d="M9.2 16.2h5.6L12 12Z"
+            fill={white}
+            fillOpacity="0.85"
+          />
+          <path
+            d="M8.7 6.8h6.6M8.7 17.2h6.6"
+            stroke={white}
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
+          <path
+            d="M10.6 9.1h2.8l-1.4 1.9Z"
+            fill={art.edge}
+            fillOpacity="0.35"
           />
         </>
       )}

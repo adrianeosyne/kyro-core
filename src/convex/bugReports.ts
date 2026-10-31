@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import {
+  BUG_LIST_LIMIT,
   hydrateUsers,
   isFounderUser,
   requireActiveUser,
@@ -91,7 +92,7 @@ export const list = query({
     const reports = await ctx.db
       .query("bugReports")
       .order("desc")
-      .take(50);
+      .take(BUG_LIST_LIMIT);
     const reporters = await hydrateUsers(
       ctx,
       reports.map((report) => report.reporterId),

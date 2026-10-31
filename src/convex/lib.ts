@@ -21,6 +21,12 @@ export const MAX_MESSAGE_LENGTH = 2000;
 export const MAX_ATTACHMENTS = 6;
 export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
+/**
+ * Most recent bug reports the Admin Portal reads. The overview badge and the
+ * Bugs tab both count over exactly this slice so they can never disagree.
+ */
+export const BUG_LIST_LIMIT = 200;
+
 export async function currentUserId(ctx: Ctx): Promise<Id<"users"> | null> {
   return await getAuthUserId(ctx);
 }
@@ -131,8 +137,8 @@ export interface PublicUser {
   /**
    * Global (platform-wide) badges shown in the profile's own badge shelf —
    * separate from community roles. Always in this order:
-   * founder, admin, moderator, bughunter, vip, og, verified, supporter,
-   * donator, partner.
+   * founder, cofounder, admin, manager, staff, moderator, trialstaff,
+   * bughunter, vip, og, verified, supporter, donator, partner.
    */
   badges: GlobalBadge[];
   /** External links shown on the profile, in the order they were saved. */
@@ -181,8 +187,12 @@ export function isReservedUsername(username: string): boolean {
 /** A platform-wide badge; never scoped to a single community. */
 export type GlobalBadge =
   | "founder"
+  | "cofounder"
   | "admin"
+  | "manager"
+  | "staff"
   | "moderator"
+  | "trialstaff"
   | "verified"
   | "bughunter"
   | "vip"
@@ -234,13 +244,17 @@ export async function hydrateUser(
     ? user.founderBadgeRemoved !== true
     : user.founderBadge === true;
   if (founderBadgeHeld) badges.push("founder");
+  if (user.coFounder === true) badges.push("cofounder");
   // Admin badge: role === "admin" always carries it. The founder also carries
   // it by default, but may strip it from their own profile via adminBadgeRemoved.
   const founderAdminRemoved = isFounder && user.adminBadgeRemoved === true;
   if (user.role === "admin" || (isFounder && !founderAdminRemoved)) {
     badges.push("admin");
   }
+  if (user.manager === true) badges.push("manager");
+  if (user.staff === true) badges.push("staff");
   if (user.siteModerator === true) badges.push("moderator");
+  if (user.trialStaff === true) badges.push("trialstaff");
   if (user.bugHunter === true) badges.push("bughunter");
   if (user.vip === true) badges.push("vip");
   if (user.og === true) badges.push("og");

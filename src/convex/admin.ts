@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx } from "./_generated/server";
 import {
+  BUG_LIST_LIMIT,
   activeSiteBan,
   hydrateUsers,
   isFounderUser,
@@ -71,8 +72,12 @@ async function logAction(
 
 type BadgeFlag =
   | "founder"
+  | "cofounder"
   | "admin"
+  | "manager"
+  | "staff"
   | "moderator"
+  | "trialstaff"
   | "verified"
   | "bughunter"
   | "vip"
@@ -89,10 +94,14 @@ function badgeFlags(user: Doc<"users">): BadgeFlag[] {
     ? user.founderBadgeRemoved !== true
     : user.founderBadge === true;
   if (founderHeld) flags.push("founder");
+  if (user.coFounder === true) flags.push("cofounder");
   if (user.role === "admin" || (founder && user.adminBadgeRemoved !== true)) {
     flags.push("admin");
   }
+  if (user.manager === true) flags.push("manager");
+  if (user.staff === true) flags.push("staff");
   if (user.siteModerator === true) flags.push("moderator");
+  if (user.trialStaff === true) flags.push("trialstaff");
   if (user.verified === true) flags.push("verified");
   if (user.bugHunter === true) flags.push("bughunter");
   if (user.vip === true) flags.push("vip");
@@ -126,7 +135,7 @@ export const overview = query({
       ctx.db.query("servers").take(1000),
       ctx.db.query("messages").take(5000),
       ctx.db.query("reports").take(500),
-      ctx.db.query("bugReports").take(500),
+      ctx.db.query("bugReports").order("desc").take(BUG_LIST_LIMIT),
       ctx.db.query("siteBans").take(500),
       ctx.db.query("warnings").take(500),
       ctx.db.query("adminActions").order("desc").take(12),

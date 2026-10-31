@@ -41,8 +41,12 @@ const USERNAME_COOLDOWN_MS = 60 * 60 * 1000;
 const PROFILE_BADGES = [
   "none",
   "founder",
+  "cofounder",
   "admin",
+  "manager",
+  "staff",
   "moderator",
+  "trialstaff",
   "verified",
   "bughunter",
   "vip",
@@ -281,10 +285,14 @@ export const updateProfile = mutation({
         ) {
           held.add("founder");
         }
+        if (user.coFounder === true) held.add("cofounder");
         if (user.role === "admin" || (isFounder && !founderAdminRemoved)) {
           held.add("admin");
         }
+        if (user.manager === true) held.add("manager");
+        if (user.staff === true) held.add("staff");
         if (user.siteModerator === true) held.add("moderator");
+        if (user.trialStaff === true) held.add("trialstaff");
         if (user.verified === true) held.add("verified");
         if (user.bugHunter === true) held.add("bughunter");
         if (user.vip === true) held.add("vip");
@@ -361,6 +369,10 @@ export const setBadges = mutation({
   args: {
     userId: v.id("users"),
     admin: v.optional(v.boolean()),
+    coFounder: v.optional(v.boolean()),
+    manager: v.optional(v.boolean()),
+    staff: v.optional(v.boolean()),
+    trialStaff: v.optional(v.boolean()),
     moderator: v.optional(v.boolean()),
     verified: v.optional(v.boolean()),
     bugHunter: v.optional(v.boolean()),
@@ -377,6 +389,10 @@ export const setBadges = mutation({
     {
       userId,
       admin,
+      coFounder,
+      manager,
+      staff,
+      trialStaff,
       moderator,
       verified,
       bugHunter,
@@ -397,6 +413,10 @@ export const setBadges = mutation({
     }
     if (
       admin === undefined &&
+      coFounder === undefined &&
+      manager === undefined &&
+      staff === undefined &&
+      trialStaff === undefined &&
       moderator === undefined &&
       verified === undefined &&
       bugHunter === undefined &&
@@ -421,6 +441,10 @@ export const setBadges = mutation({
       if (admin) patch.adminBadgeRemoved = undefined;
     }
     if (moderator !== undefined) patch.siteModerator = moderator;
+    if (coFounder !== undefined) patch.coFounder = coFounder;
+    if (manager !== undefined) patch.manager = manager;
+    if (staff !== undefined) patch.staff = staff;
+    if (trialStaff !== undefined) patch.trialStaff = trialStaff;
     if (verified !== undefined) patch.verified = verified;
     if (bugHunter !== undefined) patch.bugHunter = bugHunter;
     if (vip !== undefined) patch.vip = vip;

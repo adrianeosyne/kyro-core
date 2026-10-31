@@ -56,8 +56,12 @@ const TABS: { id: AdminTab; label: string; icon: typeof ShieldCheck }[] = [
 
 /** Badge ids that can be granted from the portal, with their mutation key. */
 type GrantableBadgeId =
+  | "cofounder"
   | "admin"
+  | "manager"
+  | "staff"
   | "moderator"
+  | "trialstaff"
   | "verified"
   | "bughunter"
   | "vip"
@@ -70,7 +74,11 @@ type GrantableBadgeId =
 const BADGE_FIELDS: {
   id: GrantableBadgeId;
   field:
+    | "coFounder"
     | "admin"
+    | "manager"
+    | "staff"
+    | "trialStaff"
     | "moderator"
     | "verified"
     | "bugHunter"
@@ -82,8 +90,12 @@ const BADGE_FIELDS: {
     | "founder";
 }[] = [
   { id: "founder", field: "founder" },
+  { id: "cofounder", field: "coFounder" },
   { id: "admin", field: "admin" },
+  { id: "manager", field: "manager" },
+  { id: "staff", field: "staff" },
   { id: "moderator", field: "moderator" },
+  { id: "trialstaff", field: "trialStaff" },
   { id: "verified", field: "verified" },
   { id: "bughunter", field: "bugHunter" },
   { id: "vip", field: "vip" },
@@ -110,6 +122,9 @@ function timeAgo(timestamp: number): string {
  */
 export function AdminPortal() {
   const data = useQuery(api.admin.overview);
+  // The badge and the Bugs tab read the same query result, so the indicator
+  // can never advertise reports the tab refuses to show.
+  const bugs = useQuery(api.bugReports.list);
   const [tab, setTab] = useState<AdminTab>("overview");
   const navigate = useNavigate();
 
@@ -138,6 +153,13 @@ export function AdminPortal() {
       </div>
     );
   }
+
+  const openBugs =
+    bugs === undefined
+      ? data.counts.openBugs
+      : bugs.filter(
+          (bug) => bug.status === "open" || bug.status === "acknowledged",
+        ).length;
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
@@ -185,9 +207,9 @@ export function AdminPortal() {
                   {data.counts.openReports}
                 </span>
               )}
-              {entry.id === "bugs" && data.counts.openBugs > 0 && (
+              {entry.id === "bugs" && openBugs > 0 && (
                 <span className="ml-0.5 rounded-full bg-warning px-1.5 text-[10px] font-bold text-black/80">
-                  {data.counts.openBugs}
+                  {openBugs}
                 </span>
               )}
             </button>
@@ -196,7 +218,7 @@ export function AdminPortal() {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-5">
-        {tab === "overview" && <OverviewTab data={data} />}
+        {tab === "overview" && <OverviewTab data={data} openBugs={openBugs} />}
         {tab === "badges" && (
           <BadgesTab
             isAdmin={data.me.isAdmin}
@@ -208,6 +230,7 @@ export function AdminPortal() {
           <BugsTab
             isAdmin={data.me.isAdmin}
             canTriage={data.me.isAdmin || data.me.isModerator}
+            bugs={bugs}
           />
         )}
         {tab === "bans" && <BansTab />}
@@ -296,7 +319,14 @@ type OverviewData = Extract<
   { allowed: true }
 >;
 
-function OverviewTab({ data }: { data: OverviewData }) {
+function OverviewTab({
+  data,
+  openBugs,
+}: {
+  data: OverviewData;
+  /** Open + acknowledged bugs from the same list the Bugs tab renders. */
+  openBugs: number;
+}) {
   const me = useQuery(api.users.me);
   const removeAdmin = useMutation(api.users.removeMyAdminBadge);
   const restoreAdmin = useMutation(api.admin.restoreMyAdminBadge);
@@ -329,7 +359,7 @@ function OverviewTab({ data }: { data: OverviewData }) {
         />
         <StatCard
           label="Open bugs"
-          value={data.counts.openBugs}
+          value={openBugs}
           hint="from Bug Hunting"
           icon={Wrench}
           tone="amber"
@@ -849,16 +879,18 @@ type BugStatus = keyof typeof BUG_STATUS;
 function BugsTab({
   isAdmin,
   canTriage,
+  bugs,
 }: {
   isAdmin: boolean;
   canTriage: boolean;
+  /** Shared with the tab badge so the count and the list always agree. */
+  bugs: QueryReturns<typeof api.bugReports.list> | undefined;
 }) {
-  const bugs = useQuery(api.bugReports.list);
   const update = useMutation(api.bugReports.updateStatus);
   const setBadges = useMutation(api.users.setBadges);
 
   if (bugs === undefined) return <Loading />;
-  if (bugs.length === 0) return <Empty text="No bug reports yet." />;
+  if (bugs.length === 0) return <Empty text="No bug reports found." />;
 
   return (
     <div className="space-y-2">
