@@ -16,6 +16,13 @@ export interface PendingAttachment {
 }
 
 /**
+ * Set once a deployment reports that `files:registerUpload` doesn't exist, so
+ * later uploads skip the doomed call instead of paying for a failed mutation
+ * every time. A page reload resets this after the backend is upgraded.
+ */
+let registerUploadUnavailable = false;
+
+/**
  * Files go straight to object storage through a short-lived signed URL, so
  * the browser never streams file contents through the database.
  */
@@ -47,6 +54,8 @@ export function useUploadFile() {
         mimeType: file.type || "application/octet-stream",
       };
 
+      if (registerUploadUnavailable) return attachment;
+
       try {
         return await registerUpload({
           storageId: attachment.storageId,
@@ -63,6 +72,7 @@ export function useUploadFile() {
         // The object is already in Convex storage. Older deployments predate
         // upload ownership tracking, so they accept the storage id directly —
         // return the local metadata instead of failing the whole upload.
+        registerUploadUnavailable = true;
         return attachment;
       }
     },
